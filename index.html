@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mave · Registro de Produção</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    // Aplica tema antes do paint pra evitar flash de tela clara
+    (function() {
+      try {
+        var saved = localStorage.getItem('mave_tema');
+        var prefDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.dataset.theme = saved || (prefDark ? 'dark' : 'light');
+      } catch (e) { document.documentElement.dataset.theme = 'light'; }
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css">
+
+</head>
+<body>
+  <!-- ============================================================ -->
+  <!-- TELA DE LOGIN                                                -->
+  <!-- ============================================================ -->
+  <div id="screen-login">
+    <aside class="panel-brand">
+      <div class="brand-logo">
+        MAVE
+        <span>Grupo Doca · Sistema de Produção</span>
+      </div>
+      <div class="brand-content">
+        <h1>Registro de produção sem planilha quebrada.</h1>
+        <p>Apontamentos confiáveis, dados consistentes, BI sem surpresas. Bem-vindo ao novo sistema de registro do chão de fábrica.</p>
+      </div>
+      <div class="brand-footer">
+        © 2026 Mave Comércio de Acessórios Ltda · v0.1 (protótipo)
+      </div>
+    </aside>
+    <main class="panel-form-login">
+      <div class="form-header">
+        <h2>Acessar o sistema</h2>
+        <p>Use o seu e-mail e senha cadastrados no RH.</p>
+      </div>
+      <div id="alert" class="alert">
+        E-mail ou senha incorretos. Tente novamente.
+      </div>
+      <form id="loginForm" autocomplete="off" novalidate>
+        <div class="login-field">
+          <label for="email">E-mail</label>
+          <input type="email" id="email" name="email" placeholder="seu.nome@mave.com.br" required autocomplete="email">
+        </div>
+        <div class="login-field">
+          <label for="senha">Senha</label>
+          <div class="field-password">
+            <input type="password" id="senha" name="senha" placeholder="Sua senha" required>
+            <button type="button" class="toggle-password" id="togglePassword">Mostrar</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="checkbox-wrapper">
+            <input type="checkbox" id="lembrar">
+            Manter conectado
+          </label>
+          <a href="#" onclick="return false;">Esqueci a senha</a>
+        </div>
+        <button type="submit" class="btn-login">Entrar</button>
+      </form>
+      <div class="form-footer">
+        Não tem conta? <a href="#" id="linkCadastro" style="color: var(--doca-orange); font-weight: 500; text-decoration: none;">Criar conta</a>
+        <br><br>
+        Problemas de acesso? Fale com o RH ou a TI.
+      </div>
+    </main>
+  </div>
+  <!-- ============================================================ -->
+  <!-- TELA DE CADASTRO                                             -->
+  <!-- ============================================================ -->
+  <div id="screen-signup" class="hidden">
+    <aside class="panel-brand">
+      <div class="brand-logo">
+        MAVE
+        <span>Grupo Doca · Sistema de Produção</span>
+      </div>
+      <div class="brand-content">
+        <h1>Crie sua conta no novo sistema.</h1>
+        <p>Cadastre-se com seu e-mail corporativo para começar a registrar sua produção.</p>
+      </div>
+      <div class="brand-footer">
+        © 2026 Mave Comércio de Acessórios Ltda · v0.1 (protótipo)
+      </div>
+    </aside>
+    <main class="panel-form-login">
+      <div class="form-header">
+        <h2>Criar conta</h2>
+        <p>Preencha os dados abaixo para se cadastrar.</p>
+      </div>
+      <div id="alertSignup" class="alert"></div>
+      <form id="signupForm" autocomplete="off" novalidate>
+        <div class="login-field">
+          <label for="signup-email">E-mail</label>
+          <input type="email" id="signup-email" placeholder="seu.nome@mave.com.br" required autocomplete="email">
+        </div>
+        <div class="login-field">
+          <label for="signup-senha">Senha</label>
+          <div class="field-password">
+            <input type="password" id="signup-senha" placeholder="Mínimo 6 caracteres" required minlength="6">
+            <button type="button" class="toggle-password" id="toggleSignupPassword">Mostrar</button>
+          </div>
+        </div>
+        <div class="login-field">
+          <label for="signup-confirma">Confirmar senha</label>
+          <input type="password" id="signup-confirma" placeholder="Repita a senha" required minlength="6">
+        </div>
+        <button type="submit" class="btn-login">Criar conta</button>
+      </form>
+      <div class="form-footer">
+        Já tem conta? <a href="#" id="linkVoltarLogin" style="color: var(--doca-orange); font-weight: 500; text-decoration: none;">Fazer login</a>
+      </div>
+    </main>
+  </div>
+  <!-- ============================================================ -->
+  <!-- PAINEL (oculto até login)                                    -->
+  <!-- ============================================================ -->
+  <div id="screen-app">
+    <header class="topbar">
+      <div class="topbar-brand">MAVE <span>·</span> Produção</div>
+      <div class="topbar-user">
+        <div class="user-info">
+          <strong id="user-name">...</strong>
+          <span id="user-meta">...</span>
+        </div>
+        <div class="avatar" id="user-avatar">...</div>
+        <button class="btn-logout" id="btnTema" type="button" title="Alternar tema">Tema</button>
+        <button class="btn-logout" id="btnLogout">Sair</button>
+      </div>
+    </header>
+    <nav class="tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="trancadeiras">Trançadeiras</button>
+      <button class="tab" data-tab="grampeadeiras">Grampeadeiras</button>
+      <button class="tab" data-tab="extensor">Extensor Metro</button>
+      <button class="tab" data-tab="configuracoes">Configurações</button>
+    </nav>
+    <main class="container">
+      <!-- DASHBOARD -->
+      <section class="panel active" id="panel-dashboard">
+        <div class="panel-header">
+          <h1 id="dashboard-greeting">Painel</h1>
+          <p id="dashboard-subtitle">Visão geral da produção de hoje.</p>
+        </div>
+        <div class="kpi-grid">
+          <div class="card kpi-card" data-go="trancadeiras">
+            <div class="kpi-label">Trançadeiras · hoje</div>
+            <div class="kpi-value" id="kpi-trancadeira-count">0</div>
+            <div class="kpi-sub" id="kpi-trancadeira-sub">0,00 kg produzidos</div>
+          </div>
+          <div class="card kpi-card" data-go="grampeadeiras">
+            <div class="kpi-label">Grampeadeiras · hoje</div>
+            <div class="kpi-value" id="kpi-grampeadeira-count">0</div>
+            <div class="kpi-sub" id="kpi-grampeadeira-sub">0 unidades produzidas</div>
+          </div>
+          <div class="card kpi-card" data-go="extensor">
+            <div class="kpi-label">Extensor Metro · hoje</div>
+            <div class="kpi-value" id="kpi-extensor-count">0</div>
+            <div class="kpi-sub" id="kpi-extensor-sub">0 unidades produzidas</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>Metas do dia</h2><span class="badge" id="metas-badge">0 metas</span></div>
+          <div id="metas-list" class="metas-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>Atividade recente</h2><span class="badge" id="recent-badge">0 registros</span></div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>Hora</th><th>Data</th><th>Estação</th><th>Detalhes</th></tr>
+              </thead>
+              <tbody id="tbody-recent">
+                <tr><td colspan="4" class="empty-state">Nenhum registro ainda. Começe por uma das estações acima.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <!-- TRANÃ‡ADEIRAS -->
+      <section class="panel" id="panel-trancadeiras">
+        <div class="panel-header">
+          <h1>Trançadeiras</h1>
+          <p>Registre a produção de trançadeira por turno.</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Novo registro</h2>
+            <span class="badge">Campos com * são obrigatórios</span>
+          </div>
+          <form id="form-trancadeira">
+            <div class="form-grid">
+              <div class="field required"><label for="t-data">Data</label><input type="date" id="t-data" required></div>
+              <div class="field required"><label for="t-tipo-caixa">Tipo de Caixa</label>
+                <select id="t-tipo-caixa" required></select>
+              </div>
+              <div class="field required"><label for="t-linha">Linha</label>
+                <select id="t-linha" required></select>
+              </div>
+              <div class="field required"><label for="t-cor">Cor</label>
+                <select id="t-cor" required></select>
+              </div>
+              <div class="field required"><label for="t-diametro">Diâmetro (mm)</label>
+                <select id="t-diametro" required></select>
+              </div>
+              <div class="field required"><label for="t-peso">Peso (kg)</label>
+                <input type="number" step="0.01" min="0.01" id="t-peso" placeholder="0,00" required>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button type="reset" class="btn btn-secondary">Limpar</button>
+              <button type="submit" class="btn btn-primary">Salvar registro</button>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Registros</h2>
+            <span class="badge" id="count-trancadeira">0 registros</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>Hora</th><th>Data</th><th>Tipo Caixa</th><th>Linha</th><th>Cor</th><th>Diâmetro</th><th>Peso (kg)</th><th class="th-actions">Ações</th></tr>
+              </thead>
+              <tbody id="tbody-trancadeira">
+                <tr><td colspan="8" class="empty-state">Nenhum registro hoje. Use o formulário acima.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <!-- GRAMPEADEIRAS -->
+      <section class="panel" id="panel-grampeadeiras">
+        <div class="panel-header">
+          <h1>Grampeadeiras</h1>
+          <p>Registre a produção de grampeadeira, com controle de hora extra.</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Novo registro</h2>
+            <span class="badge">Campos com * são obrigatórios</span>
+          </div>
+          <form id="form-grampeadeira">
+            <div class="form-grid">
+              <div class="field required"><label for="g-op">Nº O.P.</label><input type="text" id="g-op" placeholder="Ex.: OP-12345" required></div>
+              <div class="field required"><label for="g-data">Data</label><input type="date" id="g-data" required></div>
+              <div class="field required"><label for="g-hi">Hora Início</label><input type="time" id="g-hi" required></div>
+              <div class="field required"><label for="g-hf">Hora Fim</label><input type="time" id="g-hf" required></div>
+              <div class="field required"><label for="g-operador">Operador</label>
+                <select id="g-operador" required></select>
+              </div>
+              <div class="field required"><label for="g-qtd">Quantidade</label><input type="number" min="1" id="g-qtd" placeholder="0" required></div>
+              <div class="field required"><label for="g-tam">Tamanho</label><input type="number" step="0.01" min="0.01" id="g-tam" placeholder="0,00" required></div>
+              <div class="field required"><label for="g-gancho">Gancho</label><input type="text" id="g-gancho" placeholder="Identificação" required></div>
+            </div>
+            <div class="checkbox-field" style="margin-top: 16px;">
+              <input type="checkbox" id="g-he-flag">
+              <label for="g-he-flag">Houve hora extra neste registro</label>
+            </div>
+            <div class="extra-block" id="g-he-block">
+              <h3>Dados da hora extra</h3>
+              <div class="form-grid">
+                <div class="field required"><label for="g-he-hi">Hora Início</label><input type="time" id="g-he-hi"></div>
+                <div class="field required"><label for="g-he-hf">Hora Fim</label><input type="time" id="g-he-hf"></div>
+                <div class="field required"><label for="g-he-tam">Tamanho</label><input type="number" step="0.01" min="0.01" id="g-he-tam" placeholder="0,00"></div>
+                <div class="field required"><label for="g-he-qtd">Quantidade</label><input type="number" min="1" id="g-he-qtd" placeholder="0"></div>
+                <div class="field required"><label for="g-he-gancho">Gancho</label><input type="text" id="g-he-gancho" placeholder="Identificação"></div>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button type="reset" class="btn btn-secondary">Limpar</button>
+              <button type="submit" class="btn btn-primary">Salvar registro</button>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Registros</h2>
+            <span class="badge" id="count-grampeadeira">0 registros</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>Hora reg.</th><th>Nº O.P.</th><th>Data</th><th>Início</th><th>Fim</th><th>Operador</th><th>Qtd</th><th>Tamanho</th><th>Gancho</th><th>HE</th><th class="th-actions">Ações</th></tr>
+              </thead>
+              <tbody id="tbody-grampeadeira">
+                <tr><td colspan="11" class="empty-state">Nenhum registro hoje. Use o formulário acima.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <!-- EXTENSOR METRO -->
+      <section class="panel" id="panel-extensor">
+        <div class="panel-header">
+          <h1>Extensor Metro</h1>
+          <p>Registre a produção do extensor metro por turno.</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Novo registro</h2>
+            <span class="badge">Campos com * são obrigatórios</span>
+          </div>
+          <form id="form-extensor">
+            <div class="form-grid">
+              <div class="field required"><label for="e-data">Data</label><input type="date" id="e-data" required></div>
+              <div class="field required"><label for="e-tipo-caixa">Tipo de Caixa</label>
+                <select id="e-tipo-caixa" required></select>
+              </div>
+              <div class="field required"><label for="e-cor">Cor</label>
+                <select id="e-cor" required></select>
+              </div>
+              <div class="field required"><label for="e-diametro">Diâmetro (mm)</label>
+                <select id="e-diametro" required></select>
+              </div>
+              <div class="field required"><label for="e-qtd">Quantidade</label><input type="number" min="1" id="e-qtd" placeholder="0" required></div>
+            </div>
+            <div class="btn-row">
+              <button type="reset" class="btn btn-secondary">Limpar</button>
+              <button type="submit" class="btn btn-primary">Salvar registro</button>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Registros</h2>
+            <span class="badge" id="count-extensor">0 registros</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>Hora reg.</th><th>Data</th><th>Tipo Caixa</th><th>Cor</th><th>Diâmetro</th><th>Quantidade</th><th class="th-actions">Ações</th></tr>
+              </thead>
+              <tbody id="tbody-extensor">
+                <tr><td colspan="7" class="empty-state">Nenhum registro hoje. Use o formulário acima.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <!-- CONFIGURAÃ‡Ã•ES -->
+      <section class="panel" id="panel-configuracoes">
+        <div class="panel-header">
+          <h1>Configurações</h1>
+          <p>Cadastros de referência usados nos formulários de registro.</p>
+        </div>
+        <div class="config-grid">
+          <div class="card config-card">
+            <h3>Cores</h3>
+            <ul class="config-list" id="list-cores"></ul>
+            <div class="config-add">
+              <input type="text" placeholder="Nova cor" id="input-cor">
+              <button onclick="addItem('list-cores', 'input-cor')">Adicionar</button>
+            </div>
+          </div>
+          <div class="card config-card">
+            <h3>Diâmetros (mm)</h3>
+            <ul class="config-list" id="list-diametros"></ul>
+            <div class="config-add">
+              <input type="text" placeholder="Novo diâmetro" id="input-diametro">
+              <button onclick="addItem('list-diametros', 'input-diametro')">Adicionar</button>
+            </div>
+          </div>
+          <div class="card config-card">
+            <h3>Tipos de Caixa</h3>
+            <ul class="config-list" id="list-caixas"></ul>
+            <div class="config-add">
+              <input type="text" placeholder="Novo tipo" id="input-caixa">
+              <button onclick="addItem('list-caixas', 'input-caixa')">Adicionar</button>
+            </div>
+          </div>
+          <div class="card config-card">
+            <h3>Linhas de Produção</h3>
+            <ul class="config-list" id="list-linhas"></ul>
+            <div class="config-add">
+              <input type="text" placeholder="Nova linha" id="input-linha">
+              <button onclick="addItem('list-linhas', 'input-linha')">Adicionar</button>
+            </div>
+          </div>
+          <div class="card config-card">
+            <h3>Turnos</h3>
+            <ul class="config-list" id="list-turnos"></ul>
+            <div class="config-add">
+              <input type="text" placeholder="Ex.: Turno D · 08:00 às 16:00" id="input-turno">
+              <button onclick="addItem('list-turnos', 'input-turno')">Adicionar</button>
+            </div>
+          </div>
+          <div class="card config-card">
+            <h3>Operadores</h3>
+            <ul class="config-list" id="list-operadores"></ul>
+            <div class="config-add">
+              <input type="text" placeholder="Nome (matrícula)" id="input-operador">
+              <button onclick="addItem('list-operadores', 'input-operador')">Adicionar</button>
+            </div>
+          </div>
+          <div class="card config-card">
+            <h3>Metas de Produção</h3>
+            <ul class="config-list" id="list-metas"></ul>
+            <div class="config-add">
+              <input type="text" placeholder="Ex.: Operador · valor" id="input-meta">
+              <button onclick="addItem('list-metas', 'input-meta')">Adicionar</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast">Registro salvo com sucesso!</div>
+  <script src="app.js" defer></script>
+</body>
+</html>
