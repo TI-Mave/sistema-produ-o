@@ -207,6 +207,7 @@ const state = {
   config: { cores: [], diametros: [], caixas: [], linhas: [], turnos: [], operadores: [], metas: [] },
   configIds: { diametros: [], caixas: [], linhas: [], turnos: [], operadores: [], metas: [] },
   email: null,
+  profile: null,
   registros: { trancadeira: [], grampeadeira: [], extensor: [] },
   editing: { trancadeira: null, grampeadeira: null, extensor: null },
   filtros: {
@@ -221,23 +222,34 @@ const state = {
 // ============================================================
 const screenLogin = document.getElementById('screen-login');
 const screenSignup = document.getElementById('screen-signup');
+const screenPending = document.getElementById('screen-pending');
 const screenApp = document.getElementById('screen-app');
 
 function showLogin() {
   screenLogin.classList.remove('hidden');
   screenSignup.classList.add('hidden');
+  if (screenPending) screenPending.classList.add('hidden');
   screenApp.style.display = 'none';
   window.scrollTo(0, 0);
 }
 function showSignup() {
   screenLogin.classList.add('hidden');
   screenSignup.classList.remove('hidden');
+  if (screenPending) screenPending.classList.add('hidden');
+  screenApp.style.display = 'none';
+  window.scrollTo(0, 0);
+}
+function showPending() {
+  screenLogin.classList.add('hidden');
+  screenSignup.classList.add('hidden');
+  if (screenPending) screenPending.classList.remove('hidden');
   screenApp.style.display = 'none';
   window.scrollTo(0, 0);
 }
 function showApp() {
   screenLogin.classList.add('hidden');
   screenSignup.classList.add('hidden');
+  if (screenPending) screenPending.classList.add('hidden');
   screenApp.style.display = 'block';
   window.scrollTo(0, 0);
 }
@@ -359,18 +371,18 @@ signupForm.addEventListener('submit', async (e) => {
   }
 
   // Se a confirmação por e-mail estiver desativada nas configs do projeto,
-  // o Supabase já devolve session direto e o usuário entra na hora.
+  // o Supabase ja devolve session direto. Em qualquer caso, o usuario novo
+  // entra como pending e precisa ser aprovado por um admin.
   if (data.session) {
     signupForm.reset();
     await enterApp(data.user.email);
     return;
   }
 
-  // Caso contrário, manda voltar pro login com aviso pra confirmar o e-mail.
   signupForm.reset();
   document.getElementById('email').value = email;
   senhaInput.focus();
-  alertBox.textContent = 'Conta criada! Confirme seu e-mail antes de entrar.';
+  alertBox.textContent = 'Conta criada! Confirme seu e-mail e aguarde a aprovação do administrador.';
   alertBox.style.background = 'var(--success-bg)';
   alertBox.style.color = 'var(--success)';
   alertBox.style.borderColor = '#B5DCC4';
@@ -380,7 +392,7 @@ signupForm.addEventListener('submit', async (e) => {
     alertBox.style.background = '';
     alertBox.style.color = '';
     alertBox.style.borderColor = '';
-  }, 5000);
+  }, 6000);
 });
 
 // ============================================================
@@ -388,16 +400,21 @@ signupForm.addEventListener('submit', async (e) => {
 // ============================================================
 document.getElementById('btnTema').addEventListener('click', toggleTheme);
 
-document.getElementById('btnLogout').addEventListener('click', async () => {
+async function doLogout() {
   if (sb) await sb.auth.signOut();
   state.email = null;
+  state.profile = null;
   state.registros = { trancadeira: [], grampeadeira: [], extensor: [] };
   state.editing = { trancadeira: null, grampeadeira: null, extensor: null };
   setUserChrome(null);
   loginForm.reset();
   alertBox.classList.remove('show');
   showLogin();
-});
+}
+
+document.getElementById('btnLogout').addEventListener('click', doLogout);
+const btnPendingLogout = document.getElementById('btnPendingLogout');
+if (btnPendingLogout) btnPendingLogout.addEventListener('click', doLogout);
 
 // ============================================================
 // ABAS
@@ -1203,6 +1220,164 @@ for (const kind of Object.keys(TABLE_META)) {
 }
 
 // ============================================================
+// USER PROFILES (aprovacao por admin)
+// ============================================================
+async function loadMyProfile() {
+  if (!sb) return null;
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await sb.from('user_profiles').select('*').eq('id', user.id).single();
+  if (error) {
+    console.error('[Mave] Erro ao carregar profile:', error);
+    return null;
+  }
+  return data;
+}
+
+async function listAllUsers() {
+  const { data, error } = await sb.from('user_profiles')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+async function approveUserById(userId) {
+  const { data: { user } } = await sb.auth.getUser();
+  const { error } = await sb.from('user_profiles').update({
+    status: 'approved',
+    approved_at: new Date().toISOString(),
+    approved_by: user ? user.id : null,
+  }).eq('id', userId);
+  if (error) throw error;
+}
+
+async function rejectUserById(userId) {
+  const { error } = await sb.from('user_profiles').update({ status: 'rejected' }).eq('id', userId);
+  if (error) throw error;
+}
+
+async function setRoleById(userId, role) {
+  const { error } = await sb.from('user_profiles').update({ role }).eq('id', userId);
+  if (error) throw error;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  } catch (e) { return iso; }
+}
+
+const STATUS_LABEL = { pending: 'Pendente', approved: 'Aprovado', rejected: 'Rejeitado' };
+const ROLE_LABEL = { user: 'Usuário', admin: 'Administrador' };
+
+async function renderUsersPanel() {
+  if (!state.profile || state.profile.role !== 'admin') return;
+  let users;
+  try {
+    users = await listAllUsers();
+  } catch (e) {
+    showToast('Erro ao carregar usuários: ' + (e.message || e), 'error');
+    return;
+  }
+
+  const pending = users.filter(u => u.status === 'pending');
+  const tbodyPending = document.getElementById('tbody-pending');
+  const countPending = document.getElementById('count-pending');
+  if (countPending) countPending.textContent = pending.length + (pending.length === 1 ? ' pendente' : ' pendentes');
+  if (tbodyPending) {
+    if (pending.length === 0) {
+      tbodyPending.innerHTML = '<tr><td colspan="3" class="empty-state">Nenhum cadastro pendente.</td></tr>';
+    } else {
+      tbodyPending.innerHTML = '';
+      for (const u of pending) {
+        const tr = document.createElement('tr');
+        tr.dataset.id = u.id;
+        tr.innerHTML = `
+          <td>${escapeHtml(u.email)}</td>
+          <td>${escapeHtml(fmtDate(u.created_at))}</td>
+          <td class="row-actions">
+            <button type="button" class="approve">Aprovar</button>
+            <button type="button" class="reject">Rejeitar</button>
+          </td>
+        `;
+        tbodyPending.appendChild(tr);
+      }
+    }
+  }
+
+  const tbodyUsers = document.getElementById('tbody-users');
+  const countUsers = document.getElementById('count-users');
+  if (countUsers) countUsers.textContent = users.length + (users.length === 1 ? ' usuário' : ' usuários');
+  if (tbodyUsers) {
+    if (users.length === 0) {
+      tbodyUsers.innerHTML = '<tr><td colspan="5" class="empty-state">Nenhum usuário cadastrado.</td></tr>';
+    } else {
+      tbodyUsers.innerHTML = '';
+      const myId = state.profile.id;
+      for (const u of users) {
+        const tr = document.createElement('tr');
+        tr.dataset.id = u.id;
+        const isMe = u.id === myId;
+        const roleSwap = u.role === 'admin'
+          ? `<button type="button" class="demote" ${isMe ? 'disabled title="Você não pode rebaixar a si mesmo"' : ''}>Tornar usuário</button>`
+          : `<button type="button" class="promote">Tornar admin</button>`;
+        const statusActions = u.status === 'pending'
+          ? `<button type="button" class="approve">Aprovar</button><button type="button" class="reject">Rejeitar</button>`
+          : (u.status === 'rejected'
+              ? `<button type="button" class="approve">Aprovar</button>`
+              : `<button type="button" class="reject" ${isMe ? 'disabled title="Você não pode rejeitar a si mesmo"' : ''}>Rejeitar</button>`);
+        tr.innerHTML = `
+          <td>${escapeHtml(u.email)}${isMe ? ' <span class="badge badge-default" style="margin-left:6px">você</span>' : ''}</td>
+          <td>${escapeHtml(ROLE_LABEL[u.role] || u.role)}</td>
+          <td>${escapeHtml(STATUS_LABEL[u.status] || u.status)}</td>
+          <td>${escapeHtml(fmtDate(u.created_at))}</td>
+          <td class="row-actions">${statusActions}${roleSwap}</td>
+        `;
+        tbodyUsers.appendChild(tr);
+      }
+    }
+  }
+}
+
+function attachUsersPanelHandlers() {
+  const panel = document.getElementById('panel-usuarios');
+  if (!panel || panel.dataset.handlerAttached === '1') return;
+  panel.dataset.handlerAttached = '1';
+  panel.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn || btn.disabled) return;
+    const tr = btn.closest('tr');
+    if (!tr || !tr.dataset.id) return;
+    const userId = tr.dataset.id;
+    btn.disabled = true;
+    try {
+      if (btn.classList.contains('approve')) {
+        await approveUserById(userId);
+        showToast('Usuário aprovado.');
+      } else if (btn.classList.contains('reject')) {
+        if (!confirm('Rejeitar este usuário? Ele perderá acesso ao sistema.')) { btn.disabled = false; return; }
+        await rejectUserById(userId);
+        showToast('Usuário rejeitado.');
+      } else if (btn.classList.contains('promote')) {
+        await setRoleById(userId, 'admin');
+        showToast('Usuário promovido a administrador.');
+      } else if (btn.classList.contains('demote')) {
+        if (!confirm('Remover privilégios de administrador deste usuário?')) { btn.disabled = false; return; }
+        await setRoleById(userId, 'user');
+        showToast('Usuário rebaixado a comum.');
+      }
+      await renderUsersPanel();
+    } catch (err) {
+      showToast('Erro: ' + (err.message || err), 'error');
+      btn.disabled = false;
+    }
+  });
+}
+
+// ============================================================
 // USER CHROME (topbar)
 // ============================================================
 function setUserChrome(email) {
@@ -1382,7 +1557,43 @@ function setupDashboardKpiClicks() {
 async function enterApp(email) {
   state.email = email;
   setUserChrome(email);
+
+  // Carrega perfil antes de qualquer coisa: gate de aprovacao
+  const profile = await loadMyProfile();
+  state.profile = profile;
+
+  if (!profile) {
+    showToast('Não foi possível carregar seu perfil. Tente novamente.', 'error');
+    showLogin();
+    return;
+  }
+
+  if (profile.status === 'pending') {
+    const meta = document.getElementById('pending-email-meta');
+    if (meta) meta.textContent = `Conectado como ${email}. Aguardando aprovação do administrador.`;
+    showPending();
+    return;
+  }
+
+  if (profile.status === 'rejected') {
+    if (sb) await sb.auth.signOut();
+    state.email = null;
+    state.profile = null;
+    setUserChrome(null);
+    alertBox.textContent = 'Seu acesso foi rejeitado por um administrador. Procure o RH.';
+    alertBox.style.background = 'var(--danger-bg)';
+    alertBox.style.color = 'var(--danger)';
+    alertBox.classList.add('show');
+    showLogin();
+    return;
+  }
+
+  // approved
   showApp();
+
+  // Mostra/oculta aba Usuarios conforme role
+  const adminTab = document.getElementById('tab-usuarios');
+  if (adminTab) adminTab.style.display = profile.role === 'admin' ? '' : 'none';
 
   try {
     const [cfg, regs] = await Promise.all([dbLoadConfig(), dbLoadRegistros()]);
@@ -1400,6 +1611,10 @@ async function enterApp(email) {
   renderAllTables();
   attachTableActionHandlers();
   renderDashboard();
+  if (profile.role === 'admin') {
+    attachUsersPanelHandlers();
+    renderUsersPanel();
+  }
   activateTab('dashboard');
   const t = todayISO();
   document.getElementById('t-data').value = t;

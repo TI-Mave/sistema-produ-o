@@ -121,6 +121,37 @@
     </main>
   </div>
   <!-- ============================================================ -->
+  <!-- TELA DE AGUARDO DE APROVAÇÃO                                 -->
+  <!-- ============================================================ -->
+  <div id="screen-pending" class="hidden">
+    <aside class="panel-brand">
+      <div class="brand-logo">
+        MAVE
+        <span>Grupo Doca · Sistema de Produção</span>
+      </div>
+      <div class="brand-content">
+        <h1>Aguardando aprovação.</h1>
+        <p>Seu cadastro foi recebido e está aguardando aprovação de um administrador. Você terá acesso assim que for liberado.</p>
+      </div>
+      <div class="brand-footer">
+        © 2026 Mave Comércio de Acessórios Ltda · v0.1 (protótipo)
+      </div>
+    </aside>
+    <main class="panel-form-login">
+      <div class="form-header">
+        <h2>Conta criada com sucesso</h2>
+        <p id="pending-email-meta">Seu acesso depende de um administrador aprovar sua conta.</p>
+      </div>
+      <div class="alert show" style="background: var(--warning-bg); color: var(--warning); border-color: #E8D7A8;">
+        Enquanto isso, você não consegue acessar os registros nem a configuração da fábrica. Avise um administrador.
+      </div>
+      <button type="button" class="btn-login" id="btnPendingLogout" style="margin-top: 24px;">Sair</button>
+      <div class="form-footer">
+        Erro? Fale com o RH ou a TI.
+      </div>
+    </main>
+  </div>
+  <!-- ============================================================ -->
   <!-- PAINEL (oculto até login)                                    -->
   <!-- ============================================================ -->
   <div id="screen-app">
@@ -142,6 +173,7 @@
       <button class="tab" data-tab="grampeadeiras">Grampeadeiras</button>
       <button class="tab" data-tab="extensor">Extensor Metro</button>
       <button class="tab" data-tab="configuracoes">Configurações</button>
+      <button class="tab admin-only" data-tab="usuarios" id="tab-usuarios" style="display:none">Usuários</button>
     </nav>
     <main class="container">
       <!-- DASHBOARD -->
@@ -409,6 +441,45 @@
               <input type="text" placeholder="Ex.: Operador · valor" id="input-meta">
               <button onclick="addItem('list-metas', 'input-meta')">Adicionar</button>
             </div>
+          </div>
+        </div>
+      </section>
+      <!-- USUÁRIOS (somente admin) -->
+      <section class="panel" id="panel-usuarios">
+        <div class="panel-header">
+          <h1>Usuários</h1>
+          <p>Aprove cadastros novos e gerencie permissões de acesso.</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Pendentes de aprovação</h2>
+            <span class="badge" id="count-pending">0</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>E-mail</th><th>Cadastrado em</th><th class="th-actions">Ações</th></tr>
+              </thead>
+              <tbody id="tbody-pending">
+                <tr><td colspan="3" class="empty-state">Nenhum cadastro pendente.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Todos os usuários</h2>
+            <span class="badge" id="count-users">0</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>E-mail</th><th>Função</th><th>Status</th><th>Cadastrado</th><th class="th-actions">Ações</th></tr>
+              </thead>
+              <tbody id="tbody-users">
+                <tr><td colspan="5" class="empty-state">Carregando...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>

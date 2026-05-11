@@ -868,6 +868,15 @@ tbody tr:hover { background: var(--surface-2); }
 .row-actions .edit:hover { background: var(--surface-2); color: var(--doca-orange); }
 .row-actions .remove { color: var(--danger); }
 .row-actions .remove:hover { background: var(--danger-bg); }
+.row-actions .approve { color: var(--success); }
+.row-actions .approve:hover { background: var(--success-bg); }
+.row-actions .reject { color: var(--danger); }
+.row-actions .reject:hover { background: var(--danger-bg); }
+.row-actions .promote { color: var(--doca-orange); }
+.row-actions .promote:hover { background: var(--doca-orange-soft); }
+.row-actions .demote { color: var(--ink-2); }
+.row-actions .demote:hover { background: var(--surface-2); }
+.row-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
 /* ========== CARD EM MODO EDIÇÃO ========== */
 .card.editing {
   border-color: var(--doca-orange);
