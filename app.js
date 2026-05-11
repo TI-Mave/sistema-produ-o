@@ -1,98 +1,190 @@
 console.log('[Mave] Script carregado.');
 
 // ============================================================
-// STORAGE
+// SUPABASE CLIENT
 // ============================================================
-// Protótipo: tudo em localStorage. Em produção, isto vira API.
-const STORAGE_KEYS = {
-  USERS: 'mave_usuarios',
-  SESSION: 'mave_sessao',
-  CONFIG: 'mave_config',
-};
-const registrosKey = (email) => `mave_registros_${email}`;
+const SUPABASE_CFG = window.SUPABASE_CONFIG || {};
+const sb = (window.supabase && SUPABASE_CFG.url && SUPABASE_CFG.anonKey)
+  ? window.supabase.createClient(SUPABASE_CFG.url, SUPABASE_CFG.anonKey)
+  : null;
 
-const DEFAULT_CONFIG = {
-  cores: [
-    { nome: 'Preto', hex: '#1A1814' },
-    { nome: 'Branco', hex: '#FFFFFF' },
-    { nome: 'Azul', hex: '#2563EB' },
-    { nome: 'Vermelho', hex: '#DC2626' },
-  ],
-  diametros: ['2.5', '3.0', '4.0', '5.0'],
-  caixas: ['Caixa 1Kg', 'Caixa 3.5Kg'],
-  linhas: ['Linha 1', 'Linha 2', 'Linha 3'],
-  turnos: ['Turno A · 06:00 às 14:00', 'Turno B · 14:00 às 22:00', 'Turno C · 22:00 às 06:00'],
-  operadores: ['João Silva (12345)', 'Maria Souza (12346)', 'Pedro Lima (12347)'],
-  metas: ['Meta Geral · 1000/dia', 'João Silva · 350/dia'],
-};
+// ============================================================
+// CONSTANTES
+// ============================================================
 const COR_HEX_FALLBACK = '#8A857C';
 
+// Restricao de dominio para cadastro (espelhada por trigger no auth.users)
+const ALLOWED_EMAIL_DOMAIN = 'mavebr.com';
+
+// Mapa entre as chaves do state.config (plural) e os valores
+// gravados na coluna config_items.tipo (singular).
+const TIPO_FROM_KEY = {
+  diametros: 'diametro',
+  caixas: 'caixa',
+  linhas: 'linha',
+  turnos: 'turno',
+  operadores: 'operador',
+  metas: 'meta',
+};
+
+const TABLE_FOR = {
+  trancadeira: 'registros_trancadeira',
+  grampeadeira: 'registros_grampeadeira',
+  extensor: 'registros_extensor',
+};
+
+// ============================================================
+// HELPERS GERAIS
+// ============================================================
 function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
-
-function newId() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  return 'r_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+function todayISO() { return new Date().toISOString().split('T')[0]; }
+function nowTime() { return new Date().toTimeString().slice(0, 5); }
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = String(str ?? '');
+  return div.innerHTML;
 }
 
-function loadConfig() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.CONFIG);
-    if (!raw) return clone(DEFAULT_CONFIG);
-    const parsed = JSON.parse(raw);
-    return { ...clone(DEFAULT_CONFIG), ...parsed };
-  } catch (err) {
-    console.error('[Mave] Erro ao ler config:', err);
-    return clone(DEFAULT_CONFIG);
+function traduzirErroAuth(err) {
+  const msg = (err && err.message) || '';
+  if (/Invalid login credentials/i.test(msg)) return 'E-mail ou senha incorretos.';
+  if (/Email not confirmed/i.test(msg)) return 'Confirme seu e-mail antes de entrar (cheque sua caixa de entrada).';
+  if (/User already registered/i.test(msg) || /already registered/i.test(msg)) return 'Este e-mail já está cadastrado. Faça login.';
+  if (/Password should be at least/i.test(msg)) return 'A senha precisa ter pelo menos 6 caracteres.';
+  if (/rate limit|too many requests/i.test(msg)) return 'Muitas tentativas em pouco tempo. Aguarde alguns segundos.';
+  if (/mavebr|@mavebr\.com são permitidos/i.test(msg) || /Database error saving new user/i.test(msg)) {
+    return `Use seu e-mail corporativo @${ALLOWED_EMAIL_DOMAIN}.`;
   }
-}
-function saveConfig(cfg) {
-  localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(cfg));
+  return msg || 'Erro ao autenticar.';
 }
 
-function loadRegistros(email) {
-  const empty = { trancadeira: [], grampeadeira: [], extensor: [] };
-  try {
-    const raw = localStorage.getItem(registrosKey(email));
-    if (!raw) return empty;
-    const parsed = JSON.parse(raw);
-    const result = {
-      trancadeira: parsed.trancadeira || [],
-      grampeadeira: parsed.grampeadeira || [],
-      extensor: parsed.extensor || [],
-    };
-    // Migration: registros antigos podem nao ter id. Garante id estavel.
-    let migrated = false;
-    for (const kind of Object.keys(result)) {
-      for (const r of result[kind]) {
-        if (!r.id) { r.id = newId(); migrated = true; }
-      }
-    }
-    if (migrated) localStorage.setItem(registrosKey(email), JSON.stringify(result));
-    return result;
-  } catch (err) {
-    console.error('[Mave] Erro ao ler registros:', err);
-    return empty;
-  }
-}
-function saveRegistros(email, regs) {
-  localStorage.setItem(registrosKey(email), JSON.stringify(regs));
+// ============================================================
+// MAPPERS DB <-> APP
+// O DB usa snake_case; o app usa camelCase em alguns campos.
+// ============================================================
+const FROM_DB = {
+  trancadeira: (row) => ({
+    id: row.id,
+    hora: row.hora,
+    data: row.data,
+    tipoCaixa: row.tipo_caixa,
+    linha: row.linha,
+    cor: row.cor,
+    diametro: row.diametro,
+    peso: row.peso != null ? Number(row.peso).toFixed(2) : '0.00',
+  }),
+  grampeadeira: (row) => ({
+    id: row.id,
+    hora: row.hora,
+    data: row.data,
+    op: row.op,
+    hi: row.hi,
+    hf: row.hf,
+    operador: row.operador,
+    qtd: row.qtd,
+    tam: row.tam != null ? Number(row.tam).toFixed(2) : '0.00',
+    gancho: row.gancho,
+    he: !!row.he,
+    he_dados: row.he_dados || null,
+  }),
+  extensor: (row) => ({
+    id: row.id,
+    hora: row.hora,
+    data: row.data,
+    tipoCaixa: row.tipo_caixa,
+    cor: row.cor,
+    diametro: row.diametro,
+    qtd: row.qtd,
+  }),
+};
+
+const TO_DB = {
+  trancadeira: (r, userId) => ({
+    user_id: userId || null,
+    data: r.data,
+    tipo_caixa: r.tipoCaixa,
+    linha: r.linha,
+    cor: r.cor,
+    diametro: r.diametro,
+    peso: parseFloat(r.peso),
+  }),
+  grampeadeira: (r, userId) => ({
+    user_id: userId || null,
+    data: r.data,
+    op: r.op,
+    hi: r.hi,
+    hf: r.hf,
+    operador: r.operador,
+    qtd: parseInt(r.qtd, 10),
+    tam: parseFloat(r.tam),
+    gancho: r.gancho,
+    he: !!r.he,
+    he_dados: r.he ? r.he_dados : null,
+  }),
+  extensor: (r, userId) => ({
+    user_id: userId || null,
+    data: r.data,
+    tipo_caixa: r.tipoCaixa,
+    cor: r.cor,
+    diametro: r.diametro,
+    qtd: parseInt(r.qtd, 10),
+  }),
+};
+
+// ============================================================
+// DATA LAYER (Supabase)
+// ============================================================
+async function dbLoadConfig() {
+  const [coresRes, itemsRes] = await Promise.all([
+    sb.from('cores').select('*').order('created_at', { ascending: true }),
+    sb.from('config_items').select('*').order('created_at', { ascending: true }),
+  ]);
+  if (coresRes.error) throw coresRes.error;
+  if (itemsRes.error) throw itemsRes.error;
+
+  const items = itemsRes.data || [];
+  const byTipo = (tipo) => items.filter(i => i.tipo === tipo);
+
+  state.configIds = {
+    diametros: byTipo('diametro').map(i => i.id),
+    caixas:    byTipo('caixa').map(i => i.id),
+    linhas:    byTipo('linha').map(i => i.id),
+    turnos:    byTipo('turno').map(i => i.id),
+    operadores:byTipo('operador').map(i => i.id),
+    metas:     byTipo('meta').map(i => i.id),
+  };
+
+  return {
+    cores:     (coresRes.data || []).map(c => ({ id: c.id, nome: c.nome, hex: c.hex })),
+    diametros: byTipo('diametro').map(i => i.valor),
+    caixas:    byTipo('caixa').map(i => i.valor),
+    linhas:    byTipo('linha').map(i => i.valor),
+    turnos:    byTipo('turno').map(i => i.valor),
+    operadores:byTipo('operador').map(i => i.valor),
+    metas:     byTipo('meta').map(i => i.valor),
+  };
 }
 
-function getUsers() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '{}');
-  } catch (err) {
-    console.error('[Mave] Erro ao ler usuários:', err);
-    return {};
-  }
-}
-function saveUsers(users) {
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+async function dbLoadRegistros() {
+  const [trRes, grRes, exRes] = await Promise.all([
+    sb.from('registros_trancadeira').select('*').order('created_at', { ascending: true }),
+    sb.from('registros_grampeadeira').select('*').order('created_at', { ascending: true }),
+    sb.from('registros_extensor').select('*').order('created_at', { ascending: true }),
+  ]);
+  if (trRes.error) throw trRes.error;
+  if (grRes.error) throw grRes.error;
+  if (exRes.error) throw exRes.error;
+  return {
+    trancadeira:  (trRes.data || []).map(FROM_DB.trancadeira),
+    grampeadeira: (grRes.data || []).map(FROM_DB.grampeadeira),
+    extensor:     (exRes.data || []).map(FROM_DB.extensor),
+  };
 }
 
-function getSession() { return localStorage.getItem(STORAGE_KEYS.SESSION); }
-function setSession(email) { localStorage.setItem(STORAGE_KEYS.SESSION, email); }
-function clearSession() { localStorage.removeItem(STORAGE_KEYS.SESSION); }
+async function getCurrentUserId() {
+  const { data } = await sb.auth.getUser();
+  return data && data.user ? data.user.id : null;
+}
 
 // ===== Tema (claro/escuro) =====
 const THEME_KEY = 'mave_tema';
@@ -112,7 +204,8 @@ function toggleTheme() { setTheme(getTheme() === 'dark' ? 'light' : 'dark'); }
 // ESTADO
 // ============================================================
 const state = {
-  config: loadConfig(),
+  config: { cores: [], diametros: [], caixas: [], linhas: [], turnos: [], operadores: [], metas: [] },
+  configIds: { diametros: [], caixas: [], linhas: [], turnos: [], operadores: [], metas: [] },
   email: null,
   registros: { trancadeira: [], grampeadeira: [], extensor: [] },
   editing: { trancadeira: null, grampeadeira: null, extensor: null },
@@ -188,8 +281,9 @@ const alertBox = document.getElementById('alert');
 const btnLogin = loginForm.querySelector('.btn-login');
 const lembrarCheckbox = document.getElementById('lembrar');
 
-loginForm.addEventListener('submit', (e) => {
+loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (!sb) { alertBox.textContent = 'Supabase não configurado. Edite supabase-config.js.'; alertBox.classList.add('show'); return; }
   const email = document.getElementById('email').value.trim().toLowerCase();
   const senha = senhaInput.value;
   if (!email || !senha) {
@@ -197,28 +291,20 @@ loginForm.addEventListener('submit', (e) => {
     alertBox.classList.add('show');
     return;
   }
-  const users = getUsers();
-  if (!users[email]) {
-    alertBox.textContent = 'E-mail não cadastrado. Crie uma conta primeiro.';
-    alertBox.classList.add('show');
-    return;
-  }
-  if (users[email].senha !== senha) {
-    alertBox.textContent = 'E-mail ou senha incorretos. Tente novamente.';
+  alertBox.classList.remove('show');
+  btnLogin.textContent = 'Entrando...';
+  btnLogin.disabled = true;
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
+  btnLogin.textContent = 'Entrar';
+  btnLogin.disabled = false;
+  if (error) {
+    alertBox.textContent = traduzirErroAuth(error);
     alertBox.classList.add('show');
     senhaInput.value = '';
     senhaInput.focus();
     return;
   }
-  alertBox.classList.remove('show');
-  btnLogin.textContent = 'Entrando...';
-  btnLogin.disabled = true;
-  setTimeout(() => {
-    btnLogin.textContent = 'Entrar';
-    btnLogin.disabled = false;
-    if (lembrarCheckbox && lembrarCheckbox.checked) setSession(email);
-    enterApp(email);
-  }, 400);
+  await enterApp(data.user.email);
 });
 
 // ============================================================
@@ -228,8 +314,9 @@ const signupForm = document.getElementById('signupForm');
 const alertSignup = document.getElementById('alertSignup');
 const btnSignup = signupForm.querySelector('.btn-login');
 
-signupForm.addEventListener('submit', (e) => {
+signupForm.addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (!sb) { alertSignup.textContent = 'Supabase não configurado. Edite supabase-config.js.'; alertSignup.classList.add('show'); return; }
   const email = document.getElementById('signup-email').value.trim().toLowerCase();
   const senha = signupSenhaInput.value;
   const confirma = document.getElementById('signup-confirma').value;
@@ -243,6 +330,12 @@ signupForm.addEventListener('submit', (e) => {
     alertSignup.classList.add('show');
     return;
   }
+  const domain = (email.split('@')[1] || '').toLowerCase();
+  if (domain !== ALLOWED_EMAIL_DOMAIN) {
+    alertSignup.textContent = `Use seu e-mail corporativo @${ALLOWED_EMAIL_DOMAIN}.`;
+    alertSignup.classList.add('show');
+    return;
+  }
   if (senha.length < 6) {
     alertSignup.textContent = 'A senha precisa ter pelo menos 6 caracteres.';
     alertSignup.classList.add('show');
@@ -253,44 +346,50 @@ signupForm.addEventListener('submit', (e) => {
     alertSignup.classList.add('show');
     return;
   }
-  const users = getUsers();
-  if (users[email]) {
-    alertSignup.textContent = 'Este e-mail já está cadastrado. Faça login.';
-    alertSignup.classList.add('show');
-    return;
-  }
-  users[email] = { senha: senha, criado_em: new Date().toISOString() };
-  saveUsers(users);
   alertSignup.classList.remove('show');
   btnSignup.textContent = 'Criando conta...';
   btnSignup.disabled = true;
-  setTimeout(() => {
-    btnSignup.textContent = 'Criar conta';
-    btnSignup.disabled = false;
+  const { data, error } = await sb.auth.signUp({ email, password: senha });
+  btnSignup.textContent = 'Criar conta';
+  btnSignup.disabled = false;
+  if (error) {
+    alertSignup.textContent = traduzirErroAuth(error);
+    alertSignup.classList.add('show');
+    return;
+  }
+
+  // Se a confirmação por e-mail estiver desativada nas configs do projeto,
+  // o Supabase já devolve session direto e o usuário entra na hora.
+  if (data.session) {
     signupForm.reset();
-    document.getElementById('email').value = email;
-    senhaInput.focus();
-    alertBox.textContent = 'Conta criada! Agora faça login.';
-    alertBox.style.background = 'var(--success-bg)';
-    alertBox.style.color = 'var(--success)';
-    alertBox.style.borderColor = '#B5DCC4';
-    alertBox.classList.add('show');
-    showLogin();
-    setTimeout(() => {
-      alertBox.style.background = '';
-      alertBox.style.color = '';
-      alertBox.style.borderColor = '';
-    }, 3000);
-  }, 500);
+    await enterApp(data.user.email);
+    return;
+  }
+
+  // Caso contrário, manda voltar pro login com aviso pra confirmar o e-mail.
+  signupForm.reset();
+  document.getElementById('email').value = email;
+  senhaInput.focus();
+  alertBox.textContent = 'Conta criada! Confirme seu e-mail antes de entrar.';
+  alertBox.style.background = 'var(--success-bg)';
+  alertBox.style.color = 'var(--success)';
+  alertBox.style.borderColor = '#B5DCC4';
+  alertBox.classList.add('show');
+  showLogin();
+  setTimeout(() => {
+    alertBox.style.background = '';
+    alertBox.style.color = '';
+    alertBox.style.borderColor = '';
+  }, 5000);
 });
 
 // ============================================================
-// LOGOUT
+// LOGOUT + TEMA
 // ============================================================
 document.getElementById('btnTema').addEventListener('click', toggleTheme);
 
-document.getElementById('btnLogout').addEventListener('click', () => {
-  clearSession();
+document.getElementById('btnLogout').addEventListener('click', async () => {
+  if (sb) await sb.auth.signOut();
   state.email = null;
   state.registros = { trancadeira: [], grampeadeira: [], extensor: [] };
   state.editing = { trancadeira: null, grampeadeira: null, extensor: null };
@@ -314,7 +413,7 @@ tabs.forEach(tab => {
 });
 
 // ============================================================
-// HELPERS GERAIS
+// HELPERS GERAIS (UI)
 // ============================================================
 const toast = document.getElementById('toast');
 function showToast(msg = 'Registro salvo com sucesso!', kind = 'success') {
@@ -324,13 +423,7 @@ function showToast(msg = 'Registro salvo com sucesso!', kind = 'success') {
   clearTimeout(showToast._t);
   showToast._t = setTimeout(() => toast.classList.remove('show'), kind === 'error' ? 3500 : 2500);
 }
-function todayISO() { return new Date().toISOString().split('T')[0]; }
-function nowTime() { return new Date().toTimeString().slice(0, 5); }
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = String(str ?? '');
-  return div.innerHTML;
-}
+
 // ============================================================
 // FILTRO POR DATA + EXPORT CSV
 // ============================================================
@@ -414,7 +507,6 @@ function exportCSV(kind) {
   const all = state.registros[kind];
   const items = applyFilter(all, state.filtros[kind]);
   if (items.length === 0) return;
-  // Mais antigos primeiro no CSV (oposto da tabela), pra ficar cronologico ao abrir
   const ordered = [...items];
   const headers = CSV_HEADERS[kind];
   const lines = [headers, ...ordered.map(r => csvRow(kind, r))]
@@ -501,7 +593,6 @@ function renderOperatorFilter() {
     o.textContent = op;
     sel.appendChild(o);
   }
-  // Se o operador filtrado foi removido da config, mantem como option temp
   if (target && ![...sel.options].some(o => o.value === target)) {
     const o = document.createElement('option');
     o.value = target;
@@ -529,7 +620,6 @@ function fillSelect(selectId, options, ensureValue) {
     o.textContent = opt;
     sel.appendChild(o);
   }
-  // Garante que um valor especifico (vindo de registro antigo, p.ex.) continue selecionavel
   if (ensureValue && ![...sel.options].some(o => o.value === ensureValue)) {
     const o = document.createElement('option');
     o.value = ensureValue;
@@ -556,7 +646,7 @@ function renderDropdowns() {
 }
 
 // ============================================================
-// CONFIGURAÇÕES (listas editáveis)
+// CONFIGURAÇÕES (listas editáveis) -- Supabase
 // ============================================================
 const CONFIG_LISTS = [
   { listId: 'list-cores',      key: 'cores',      isCor: true,  inputId: 'input-cor' },
@@ -596,18 +686,29 @@ function renderAllConfigLists() {
   attachConfigActionHandlers();
 }
 
-window.addItem = function(listId, inputId) {
+window.addItem = async function(listId, inputId) {
+  if (!sb) return;
   const input = document.getElementById(inputId);
   const value = input.value.trim();
   if (!value) return;
   const meta = metaForListId(listId);
   if (!meta) return;
+
   if (meta.isCor) {
-    state.config[meta.key].push({ nome: value, hex: COR_HEX_FALLBACK });
+    const { data, error } = await sb.from('cores')
+      .insert({ nome: value, hex: COR_HEX_FALLBACK })
+      .select().single();
+    if (error) { showToast('Erro ao adicionar: ' + error.message, 'error'); return; }
+    state.config.cores.push({ id: data.id, nome: data.nome, hex: data.hex });
   } else {
-    state.config[meta.key].push(value);
+    const tipo = TIPO_FROM_KEY[meta.key];
+    const { data, error } = await sb.from('config_items')
+      .insert({ tipo, valor: value })
+      .select().single();
+    if (error) { showToast('Erro ao adicionar: ' + error.message, 'error'); return; }
+    state.config[meta.key].push(data.valor);
+    state.configIds[meta.key].push(data.id);
   }
-  saveConfig(state.config);
   input.value = '';
   renderConfigList(meta);
   renderDropdowns();
@@ -647,18 +748,25 @@ function startConfigEdit(li) {
   attachConfigActionHandlers();
 }
 
-function saveConfigEdit(li) {
+async function saveConfigEdit(li) {
+  if (!sb) return;
   const input = li.querySelector('.edit-input');
   const newValue = input.value.trim();
   if (!newValue) { input.focus(); return; }
   const meta = metaForListId(li.parentElement.id);
   const idx = Number(li.dataset.index);
+
   if (meta.isCor) {
+    const id = state.config[meta.key][idx].id;
+    const { error } = await sb.from('cores').update({ nome: newValue }).eq('id', id);
+    if (error) { showToast('Erro ao atualizar: ' + error.message, 'error'); return; }
     state.config[meta.key][idx].nome = newValue;
   } else {
+    const id = state.configIds[meta.key][idx];
+    const { error } = await sb.from('config_items').update({ valor: newValue }).eq('id', id);
+    if (error) { showToast('Erro ao atualizar: ' + error.message, 'error'); return; }
     state.config[meta.key][idx] = newValue;
   }
-  saveConfig(state.config);
   renderConfigList(meta);
   renderDropdowns();
   attachConfigActionHandlers();
@@ -671,11 +779,23 @@ function cancelConfigEdit(li) {
   attachConfigActionHandlers();
 }
 
-function removeConfigItem(li) {
+async function removeConfigItem(li) {
+  if (!sb) return;
   const meta = metaForListId(li.parentElement.id);
   const idx = Number(li.dataset.index);
-  state.config[meta.key].splice(idx, 1);
-  saveConfig(state.config);
+
+  if (meta.isCor) {
+    const id = state.config[meta.key][idx].id;
+    const { error } = await sb.from('cores').delete().eq('id', id);
+    if (error) { showToast('Erro ao remover: ' + error.message, 'error'); return; }
+    state.config[meta.key].splice(idx, 1);
+  } else {
+    const id = state.configIds[meta.key][idx];
+    const { error } = await sb.from('config_items').delete().eq('id', id);
+    if (error) { showToast('Erro ao remover: ' + error.message, 'error'); return; }
+    state.config[meta.key].splice(idx, 1);
+    state.configIds[meta.key].splice(idx, 1);
+  }
   renderConfigList(meta);
   renderDropdowns();
   attachConfigActionHandlers();
@@ -792,19 +912,17 @@ function findRegistro(kind, id) {
   return state.registros[kind].find(r => r.id === id) || null;
 }
 
-function persistRegistros() {
-  if (state.email) saveRegistros(state.email, state.registros);
-  renderDashboard();
-}
-
-function removeRegistro(kind, id) {
+async function removeRegistro(kind, id) {
+  if (!sb) return;
   const r = findRegistro(kind, id);
   if (!r) return;
   if (!confirm('Remover este registro?')) return;
+  const { error } = await sb.from(TABLE_FOR[kind]).delete().eq('id', id);
+  if (error) { showToast('Erro ao remover: ' + error.message, 'error'); return; }
   state.registros[kind] = state.registros[kind].filter(x => x.id !== id);
   if (state.editing[kind] === id) cancelEditRegistro(kind);
-  persistRegistros();
   renderTable(kind);
+  renderDashboard();
   showToast('Registro removido.');
 }
 
@@ -812,8 +930,6 @@ function removeRegistro(kind, id) {
 // EDIT MODE DE REGISTRO
 // ============================================================
 function setupFormEditingUI() {
-  // Para cada form, monta na .card-header um badge "Editando" e marca o badge
-  // existente pra esconder em modo edit; e injeta um botao "Cancelar edicao".
   for (const kind of Object.keys(TABLE_META)) {
     const meta = TABLE_META[kind];
     const form = document.getElementById(meta.formId);
@@ -836,7 +952,6 @@ function setupFormEditingUI() {
       btn.className = 'btn btn-secondary btn-cancel-edit';
       btn.textContent = 'Cancelar edição';
       btn.addEventListener('click', () => cancelEditRegistro(kind));
-      // Insere antes do submit
       const submit = btnRow.querySelector('button[type="submit"]');
       if (submit) btnRow.insertBefore(btn, submit);
       else btnRow.appendChild(btn);
@@ -857,14 +972,12 @@ function setEditingUI(kind, on) {
 function startEditRegistro(kind, id) {
   const r = findRegistro(kind, id);
   if (!r) return;
-  // Garante que nao ha outro form em edit (cancela os outros pra evitar UI confusa)
   for (const k of Object.keys(state.editing)) {
     if (k !== kind && state.editing[k]) cancelEditRegistro(k);
   }
   state.editing[kind] = id;
   fillFormFromRegistro(kind, r);
   setEditingUI(kind, true);
-  // Vai pra aba certa, scrolla pro form
   activateTab(TABLE_META[kind].tabName);
   const form = document.getElementById(TABLE_META[kind].formId);
   if (form) {
@@ -878,14 +991,12 @@ function cancelEditRegistro(kind) {
   const form = document.getElementById(TABLE_META[kind].formId);
   if (form) {
     form.reset();
-    // Restaura data padrao = hoje nos campos de data conhecidos
     const dateInput = form.querySelector('input[type="date"]');
     if (dateInput) dateInput.value = todayISO();
     if (kind === 'grampeadeira') {
       heFlag.checked = false;
       heBlock.classList.remove('show');
     }
-    // Restaura dropdowns sem ensureValue
     renderDropdowns();
   }
   setEditingUI(kind, false);
@@ -1005,8 +1116,8 @@ function buildRegistroFromForm(kind) {
   return {};
 }
 
-function submitRegistro(kind, form) {
-  // Validacao especifica de hora extra
+async function submitRegistro(kind, form) {
+  if (!sb) return;
   if (kind === 'grampeadeira' && heFlag.checked) {
     const heFields = ['g-he-hi', 'g-he-hf', 'g-he-tam', 'g-he-qtd', 'g-he-gancho'];
     const empty = heFields.find(id => !document.getElementById(id).value);
@@ -1016,18 +1127,21 @@ function submitRegistro(kind, form) {
       return;
     }
   }
+
   const data = buildRegistroFromForm(kind);
   const editingId = state.editing[kind];
+  const userId = await getCurrentUserId();
+
   if (editingId) {
+    const original = state.registros[kind].find(r => r.id === editingId);
+    const dbRow = { ...TO_DB[kind](data, userId), hora: original ? original.hora : nowTime() };
+    const { data: updated, error } = await sb.from(TABLE_FOR[kind])
+      .update(dbRow).eq('id', editingId).select().single();
+    if (error) { showToast('Erro ao atualizar: ' + error.message, 'error'); return; }
     const idx = state.registros[kind].findIndex(r => r.id === editingId);
-    if (idx >= 0) {
-      // Mantem id e hora original; substitui o resto
-      const original = state.registros[kind][idx];
-      state.registros[kind][idx] = { id: original.id, hora: original.hora, ...data };
-    }
+    if (idx >= 0) state.registros[kind][idx] = FROM_DB[kind](updated);
     state.editing[kind] = null;
     setEditingUI(kind, false);
-    persistRegistros();
     form.reset();
     const dateInput = form.querySelector('input[type="date"]');
     if (dateInput) dateInput.value = todayISO();
@@ -1037,11 +1151,14 @@ function submitRegistro(kind, form) {
     }
     renderDropdowns();
     renderTable(kind);
+    renderDashboard();
     showToast('Registro atualizado.');
   } else {
-    const novo = { id: newId(), hora: nowTime(), ...data };
-    state.registros[kind].push(novo);
-    persistRegistros();
+    const dbRow = { ...TO_DB[kind](data, userId), hora: nowTime() };
+    const { data: created, error } = await sb.from(TABLE_FOR[kind])
+      .insert(dbRow).select().single();
+    if (error) { showToast('Erro ao salvar: ' + error.message, 'error'); return; }
+    state.registros[kind].push(FROM_DB[kind](created));
     form.reset();
     const dateInput = form.querySelector('input[type="date"]');
     if (dateInput) dateInput.value = todayISO();
@@ -1050,6 +1167,7 @@ function submitRegistro(kind, form) {
       heFlag.checked = false;
     }
     renderTable(kind);
+    renderDashboard();
     showToast('Registro salvo com sucesso!');
   }
 }
@@ -1079,8 +1197,6 @@ for (const kind of Object.keys(TABLE_META)) {
   if (!form) continue;
   form.addEventListener('reset', () => {
     if (state.editing[kind]) {
-      // O reset roda antes de qualquer setTimeout; deixa o reset acontecer e
-      // depois sai do modo edit (que tambem chama form.reset, mas nao tem efeito).
       setTimeout(() => cancelEditRegistro(kind), 0);
     }
   });
@@ -1101,11 +1217,9 @@ function setUserChrome(email) {
     return;
   }
   const local = email.split('@')[0] || email;
-  // Iniciais a partir das partes separadas por . _ -, ate 2 letras
   const parts = local.split(/[._\-+]+/).filter(Boolean);
   let initials = parts.slice(0, 2).map(s => s[0].toUpperCase()).join('');
   if (!initials) initials = local.slice(0, 2).toUpperCase();
-  // Nome amigavel: capitaliza partes
   const display = parts.map(p => p[0].toUpperCase() + p.slice(1)).join(' ') || local;
   nameEl.textContent = display;
   metaEl.textContent = email;
@@ -1116,7 +1230,6 @@ function setUserChrome(email) {
 // DASHBOARD
 // ============================================================
 function parseMeta(s) {
-  // Formatos aceitos: "Nome · X/dia" ou "Nome - X/dia"
   const m = String(s).match(/^(.+?)\s*[·\-]\s*(\d+)\s*\/\s*dia\s*$/i);
   if (!m) return null;
   return { nome: m[1].trim(), valor: parseInt(m[2], 10) };
@@ -1140,7 +1253,6 @@ function renderDashboard() {
   setText('kpi-extensor-count', ex.length);
   setText('kpi-extensor-sub', exQtd + (exQtd === 1 ? ' unidade produzida' : ' unidades produzidas'));
 
-  // Saudacao no header
   const greeting = document.getElementById('dashboard-greeting');
   const subtitle = document.getElementById('dashboard-subtitle');
   if (greeting && state.email) {
@@ -1267,38 +1379,67 @@ function setupDashboardKpiClicks() {
 // ============================================================
 // BOOTSTRAP
 // ============================================================
-function enterApp(email) {
+async function enterApp(email) {
   state.email = email;
-  state.registros = loadRegistros(email);
-  state.editing = { trancadeira: null, grampeadeira: null, extensor: null };
   setUserChrome(email);
+  showApp();
+
+  try {
+    const [cfg, regs] = await Promise.all([dbLoadConfig(), dbLoadRegistros()]);
+    state.config = cfg;
+    state.registros = regs;
+    state.editing = { trancadeira: null, grampeadeira: null, extensor: null };
+  } catch (e) {
+    console.error('[Mave] Erro ao carregar dados:', e);
+    showToast('Erro ao carregar dados: ' + (e && e.message ? e.message : e), 'error');
+    return;
+  }
+
   renderDropdowns();
   renderAllConfigLists();
   renderAllTables();
   attachTableActionHandlers();
   renderDashboard();
-  // Sempre comeca na aba Dashboard ao entrar
   activateTab('dashboard');
   const t = todayISO();
   document.getElementById('t-data').value = t;
   document.getElementById('g-data').value = t;
   document.getElementById('e-data').value = t;
-  showApp();
 }
 
-function bootstrap() {
-  if (!localStorage.getItem(STORAGE_KEYS.CONFIG)) saveConfig(state.config);
-  setTheme(getTheme()); // sincroniza label do botao com o tema ja aplicado pelo script inline
+async function bootstrap() {
+  // Sanity-check: avisa se o config nao foi preenchido.
+  if (!sb) {
+    document.body.innerHTML =
+      '<div style="padding:40px;font-family:sans-serif;max-width:640px;margin:60px auto;color:#1A1814;line-height:1.5">' +
+      '<h1 style="margin-top:0">Configuração do Supabase necessária</h1>' +
+      '<p>Edite o arquivo <code>supabase-config.js</code> com a <strong>URL</strong> e a <strong>anon public key</strong> do seu projeto Supabase ' +
+      '(Dashboard → Settings → API).</p>' +
+      '<p>Depois rode o SQL de <code>supabase/schema.sql</code> no SQL Editor do projeto e recarregue a página.</p>' +
+      '</div>';
+    return;
+  }
+
+  setTheme(getTheme());
   setupFormEditingUI();
   setupTableToolbar();
   setupDashboardKpiClicks();
-  renderAllConfigLists();
-  renderDropdowns();
-  attachTableActionHandlers();
-  const sessionEmail = getSession();
-  if (sessionEmail && getUsers()[sessionEmail]) {
+
+  // Sincroniza UI quando o auth muda (ex.: logout em outra aba)
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT' && state.email) {
+      state.email = null;
+      state.registros = { trancadeira: [], grampeadeira: [], extensor: [] };
+      state.editing = { trancadeira: null, grampeadeira: null, extensor: null };
+      setUserChrome(null);
+      showLogin();
+    }
+  });
+
+  const { data: { session } } = await sb.auth.getSession();
+  if (session && session.user) {
     if (lembrarCheckbox) lembrarCheckbox.checked = true;
-    enterApp(sessionEmail);
+    await enterApp(session.user.email);
   } else {
     showLogin();
   }
