@@ -215,7 +215,6 @@ const state = {
     grampeadeira: { de: '', ate: '', operador: '' },
     extensor:    { de: '', ate: '', operador: '' },
   },
-  romaneio: [],
 };
 
 // ============================================================
@@ -984,11 +983,7 @@ function setEditingUI(kind, on) {
   const card = form.closest('.card');
   if (card) card.classList.toggle('editing', on);
   const submit = form.querySelector('button[type="submit"]');
-  if (submit) {
-    if (on) submit.textContent = 'Atualizar registro';
-    else if (kind === 'grampeadeira') submit.textContent = 'Adicionar ao romaneio';
-    else submit.textContent = 'Salvar registro';
-  }
+  if (submit) submit.textContent = on ? 'Atualizar registro' : 'Salvar registro';
 }
 
 function startEditRegistro(kind, id) {
@@ -1181,161 +1176,21 @@ async function submitRegistro(kind, form) {
       .insert(dbRow).select().single();
     if (error) { showToast('Erro ao salvar: ' + error.message, 'error'); return; }
     state.registros[kind].push(FROM_DB[kind](created));
+    const stickyOp = kind === 'grampeadeira' ? document.getElementById('g-op').value : '';
+    const stickyData = kind === 'grampeadeira' ? document.getElementById('g-data').value : '';
     form.reset();
     const dateInput = form.querySelector('input[type="date"]');
     if (dateInput) dateInput.value = todayISO();
     if (kind === 'grampeadeira') {
       heBlock.classList.remove('show');
       heFlag.checked = false;
+      document.getElementById('g-op').value = stickyOp;
+      if (stickyData) document.getElementById('g-data').value = stickyData;
     }
     renderTable(kind);
     renderDashboard();
     showToast('Registro salvo com sucesso!');
   }
-}
-
-// ============================================================
-// ROMANEIO DE GRAMPEADEIRA (lista local antes de enviar ao banco)
-// ============================================================
-function readGrampeadeiraItemFromForm() {
-  return {
-    hi: document.getElementById('g-hi').value,
-    hf: document.getElementById('g-hf').value,
-    operador: document.getElementById('g-operador').value,
-    qtd: document.getElementById('g-qtd').value,
-    tam: document.getElementById('g-tam').value,
-    gancho: document.getElementById('g-gancho').value,
-    he: heFlag.checked,
-    he_dados: heFlag.checked ? {
-      hi: document.getElementById('g-he-hi').value,
-      hf: document.getElementById('g-he-hf').value,
-      tam: document.getElementById('g-he-tam').value,
-      qtd: document.getElementById('g-he-qtd').value,
-      gancho: document.getElementById('g-he-gancho').value,
-    } : null,
-  };
-}
-
-function addToRomaneio() {
-  const data = document.getElementById('g-data').value;
-  if (!data) {
-    showToast('Preencha a Data no cabeçalho do romaneio.', 'error');
-    document.getElementById('g-data').focus();
-    return;
-  }
-  const required = ['g-hi', 'g-hf', 'g-operador', 'g-qtd', 'g-tam', 'g-gancho'];
-  const empty = required.find(id => !document.getElementById(id).value);
-  if (empty) {
-    showToast('Preencha todos os campos do item.', 'error');
-    document.getElementById(empty).focus();
-    return;
-  }
-  if (heFlag.checked) {
-    const heFields = ['g-he-hi', 'g-he-hf', 'g-he-tam', 'g-he-qtd', 'g-he-gancho'];
-    const heEmpty = heFields.find(id => !document.getElementById(id).value);
-    if (heEmpty) {
-      showToast('Você marcou Hora Extra. Preencha todos os campos do bloco.', 'error');
-      document.getElementById(heEmpty).focus();
-      return;
-    }
-  }
-  state.romaneio.push(readGrampeadeiraItemFromForm());
-  resetGrampeadeiraItemForm();
-  renderRomaneio();
-  showToast('Item adicionado ao romaneio.');
-}
-
-function resetGrampeadeiraItemForm() {
-  const itemFields = ['g-hi', 'g-hf', 'g-qtd', 'g-tam', 'g-gancho',
-    'g-he-hi', 'g-he-hf', 'g-he-tam', 'g-he-qtd', 'g-he-gancho'];
-  itemFields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  const op = document.getElementById('g-operador');
-  if (op) op.value = '';
-  heFlag.checked = false;
-  heBlock.classList.remove('show');
-}
-
-function removeFromRomaneio(idx) {
-  state.romaneio.splice(idx, 1);
-  renderRomaneio();
-}
-
-function clearRomaneio() {
-  if (state.romaneio.length === 0) return;
-  if (!confirm('Limpar todos os itens do romaneio?')) return;
-  state.romaneio = [];
-  renderRomaneio();
-}
-
-function renderRomaneio() {
-  const tbody = document.getElementById('tbody-romaneio');
-  const badge = document.getElementById('count-romaneio');
-  if (!tbody) return;
-  const items = state.romaneio;
-  if (badge) badge.textContent = items.length === 1 ? '1 item pendente' : `${items.length} itens pendentes`;
-  tbody.innerHTML = '';
-  if (items.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Nenhum item adicionado. Use o formulário acima.</td></tr>';
-    return;
-  }
-  items.forEach((it, idx) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${escapeHtml(it.hi)}</td>
-      <td>${escapeHtml(it.hf)}</td>
-      <td>${escapeHtml(it.operador)}</td>
-      <td>${escapeHtml(it.qtd)}</td>
-      <td>${escapeHtml(Number(it.tam).toFixed(2))}</td>
-      <td>${escapeHtml(it.gancho)}</td>
-      <td>${it.he ? 'Sim' : 'Não'}</td>
-      <td class="row-actions"><button type="button" class="remove" data-idx="${idx}">Remover</button></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-async function submitRomaneio() {
-  if (!sb) return;
-  if (state.romaneio.length === 0) {
-    showToast('Adicione pelo menos um item antes de enviar.', 'error');
-    return;
-  }
-  const data = document.getElementById('g-data').value;
-  const op = document.getElementById('g-op').value;
-  if (!data) {
-    showToast('Preencha a Data no cabeçalho do romaneio.', 'error');
-    document.getElementById('g-data').focus();
-    return;
-  }
-  const userId = await getCurrentUserId();
-  const rows = state.romaneio.map(it => ({
-    user_id: userId || null,
-    data,
-    op,
-    hi: it.hi,
-    hf: it.hf,
-    operador: it.operador,
-    qtd: parseInt(it.qtd, 10),
-    tam: parseFloat(it.tam),
-    gancho: it.gancho,
-    he: !!it.he,
-    he_dados: it.he && it.he_dados ? {
-      hi: it.he_dados.hi,
-      hf: it.he_dados.hf,
-      tam: parseFloat(it.he_dados.tam).toFixed(2),
-      qtd: it.he_dados.qtd,
-      gancho: it.he_dados.gancho,
-    } : null,
-    hora: nowTime(),
-  }));
-  const { data: created, error } = await sb.from('registros_grampeadeira').insert(rows).select();
-  if (error) { showToast('Erro ao enviar romaneio: ' + error.message, 'error'); return; }
-  (created || []).forEach(row => state.registros.grampeadeira.push(FROM_DB.grampeadeira(row)));
-  state.romaneio = [];
-  renderRomaneio();
-  renderTable('grampeadeira');
-  renderDashboard();
-  showToast(`${rows.length} ${rows.length === 1 ? 'item enviado' : 'itens enviados'} com sucesso!`);
 }
 
 const heFlag = document.getElementById('g-he-flag');
@@ -1350,19 +1205,7 @@ document.getElementById('form-trancadeira').addEventListener('submit', (e) => {
 });
 document.getElementById('form-grampeadeira').addEventListener('submit', (e) => {
   e.preventDefault();
-  if (state.editing.grampeadeira) {
-    submitRegistro('grampeadeira', e.target);
-  } else {
-    addToRomaneio();
-  }
-});
-document.getElementById('btn-clear-romaneio').addEventListener('click', clearRomaneio);
-document.getElementById('btn-submit-romaneio').addEventListener('click', submitRomaneio);
-document.getElementById('tbody-romaneio').addEventListener('click', (e) => {
-  const btn = e.target.closest('button.remove');
-  if (!btn) return;
-  const idx = parseInt(btn.dataset.idx, 10);
-  if (!isNaN(idx)) removeFromRomaneio(idx);
+  submitRegistro('grampeadeira', e.target);
 });
 document.getElementById('form-extensor').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -1770,7 +1613,6 @@ async function enterApp(email) {
   renderDropdowns();
   renderAllConfigLists();
   renderAllTables();
-  renderRomaneio();
   attachTableActionHandlers();
   renderDashboard();
   if (profile.role === 'admin') {
