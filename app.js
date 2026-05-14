@@ -861,7 +861,7 @@ const TABLE_META = {
     colspan: 11,
     rowCells: (r) => `
       <td>${escapeHtml(r.hora)}</td>
-      <td>${escapeHtml(r.op)}</td>
+      <td>${escapeHtml(r.op || '—')}</td>
       <td>${escapeHtml(r.data)}</td>
       <td>${escapeHtml(r.hi)}</td>
       <td>${escapeHtml(r.hf)}</td>
@@ -1176,12 +1176,16 @@ async function submitRegistro(kind, form) {
       .insert(dbRow).select().single();
     if (error) { showToast('Erro ao salvar: ' + error.message, 'error'); return; }
     state.registros[kind].push(FROM_DB[kind](created));
+    const stickyOp = kind === 'grampeadeira' ? document.getElementById('g-op').value : '';
+    const stickyData = kind === 'grampeadeira' ? document.getElementById('g-data').value : '';
     form.reset();
     const dateInput = form.querySelector('input[type="date"]');
     if (dateInput) dateInput.value = todayISO();
     if (kind === 'grampeadeira') {
       heBlock.classList.remove('show');
       heFlag.checked = false;
+      document.getElementById('g-op').value = stickyOp;
+      if (stickyData) document.getElementById('g-data').value = stickyData;
     }
     renderTable(kind);
     renderDashboard();
