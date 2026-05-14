@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
 
 </head>
 <body>
@@ -277,17 +277,25 @@
       <section class="panel" id="panel-grampeadeiras">
         <div class="panel-header">
           <h1>Grampeadeiras</h1>
-          <p>Registre a produção de grampeadeira, com controle de hora extra.</p>
+          <p>Monte um romaneio: defina o cabeçalho, adicione os itens e envie tudo de uma vez.</p>
         </div>
         <div class="card">
           <div class="card-header">
-            <h2>Novo registro</h2>
+            <h2>Cabeçalho do romaneio</h2>
+            <span class="badge">Vale para todos os itens</span>
+          </div>
+          <div class="form-grid">
+            <div class="field required"><label for="g-data">Data</label><input type="date" id="g-data" required></div>
+            <div class="field"><label for="g-op">Nº O.P.</label><input type="text" id="g-op" placeholder="Ex.: OP-12345 (opcional)"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Adicionar item</h2>
             <span class="badge">Campos com * são obrigatórios</span>
           </div>
           <form id="form-grampeadeira">
             <div class="form-grid">
-              <div class="field"><label for="g-op">Nº O.P.</label><input type="text" id="g-op" placeholder="Ex.: OP-12345 (opcional)"></div>
-              <div class="field required"><label for="g-data">Data</label><input type="date" id="g-data" required></div>
               <div class="field required"><label for="g-hi">Hora Início</label><input type="time" id="g-hi" required></div>
               <div class="field required"><label for="g-hf">Hora Fim</label><input type="time" id="g-hf" required></div>
               <div class="field required"><label for="g-operador">Operador</label>
@@ -299,7 +307,7 @@
             </div>
             <div class="checkbox-field" style="margin-top: 16px;">
               <input type="checkbox" id="g-he-flag">
-              <label for="g-he-flag">Houve hora extra neste registro</label>
+              <label for="g-he-flag">Houve hora extra neste item</label>
             </div>
             <div class="extra-block" id="g-he-block">
               <h3>Dados da hora extra</h3>
@@ -312,14 +320,34 @@
               </div>
             </div>
             <div class="btn-row">
-              <button type="reset" class="btn btn-secondary">Limpar</button>
-              <button type="submit" class="btn btn-primary">Salvar registro</button>
+              <button type="reset" class="btn btn-secondary">Limpar campos</button>
+              <button type="submit" class="btn btn-primary">Adicionar ao romaneio</button>
             </div>
           </form>
         </div>
         <div class="card">
           <div class="card-header">
-            <h2>Registros</h2>
+            <h2>Itens do romaneio</h2>
+            <span class="badge" id="count-romaneio">0 itens pendentes</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>Início</th><th>Fim</th><th>Operador</th><th>Qtd</th><th>Tamanho</th><th>Gancho</th><th>HE</th><th class="th-actions">Ações</th></tr>
+              </thead>
+              <tbody id="tbody-romaneio">
+                <tr><td colspan="8" class="empty-state">Nenhum item adicionado. Use o formulário acima.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="btn-row" style="margin-top: 16px;">
+            <button type="button" class="btn btn-secondary" id="btn-clear-romaneio">Limpar romaneio</button>
+            <button type="button" class="btn btn-primary" id="btn-submit-romaneio">Enviar romaneio</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Registros salvos</h2>
             <span class="badge" id="count-grampeadeira">0 registros</span>
           </div>
           <div class="table-wrapper">
@@ -490,7 +518,7 @@
   </div>
   <div class="toast" id="toast">Registro salvo com sucesso!</div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=7"></script>
-  <script src="app.js?v=7" defer></script>
+  <script src="supabase-config.js?v=8"></script>
+  <script src="app.js?v=8" defer></script>
 </body>
 </html>
