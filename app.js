@@ -1177,7 +1177,9 @@ async function submitRegistro(kind, form) {
     if (error) { showToast('Erro ao salvar: ' + error.message, 'error'); return; }
     state.registros[kind].push(FROM_DB[kind](created));
     const stickyOp = kind === 'grampeadeira' ? document.getElementById('g-op').value : '';
-    const stickyData = kind === 'grampeadeira' ? document.getElementById('g-data').value : '';
+    const stickyGrampData = kind === 'grampeadeira' ? document.getElementById('g-data').value : '';
+    const stickyLinha = kind === 'trancadeira' ? document.getElementById('t-linha').value : '';
+    const stickyTrancData = kind === 'trancadeira' ? document.getElementById('t-data').value : '';
     form.reset();
     const dateInput = form.querySelector('input[type="date"]');
     if (dateInput) dateInput.value = todayISO();
@@ -1185,7 +1187,11 @@ async function submitRegistro(kind, form) {
       heBlock.classList.remove('show');
       heFlag.checked = false;
       document.getElementById('g-op').value = stickyOp;
-      if (stickyData) document.getElementById('g-data').value = stickyData;
+      if (stickyGrampData) document.getElementById('g-data').value = stickyGrampData;
+    }
+    if (kind === 'trancadeira') {
+      if (stickyLinha) document.getElementById('t-linha').value = stickyLinha;
+      if (stickyTrancData) document.getElementById('t-data').value = stickyTrancData;
     }
     renderTable(kind);
     renderDashboard();
