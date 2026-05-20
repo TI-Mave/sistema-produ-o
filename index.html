@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=11">
 
 </head>
 <body>
@@ -66,7 +66,7 @@
             <input type="checkbox" id="lembrar">
             Manter conectado
           </label>
-          <a href="#" onclick="return false;">Esqueci a senha</a>
+          <a href="#" id="linkEsqueciSenha" style="color: var(--doca-orange); font-weight: 500; text-decoration: none;">Esqueci a senha</a>
         </div>
         <button type="submit" class="btn-login">Entrar</button>
       </form>
@@ -152,6 +152,80 @@
       <div class="form-footer">
         Erro? Fale com o RH ou a TI.
       </div>
+    </main>
+  </div>
+  <!-- ============================================================ -->
+  <!-- TELA DE ESQUECI A SENHA                                      -->
+  <!-- ============================================================ -->
+  <div id="screen-forgot" class="hidden">
+    <aside class="panel-brand">
+      <div class="brand-logo">
+        MAVE
+        <span>Grupo Doca · Sistema de Produção</span>
+      </div>
+      <div class="brand-content">
+        <h1>Esqueceu sua senha?</h1>
+        <p>Informe seu e-mail corporativo. Vamos enviar um link para você criar uma nova senha.</p>
+      </div>
+      <div class="brand-footer">
+        © 2026 Mave Comércio de Acessórios Ltda · v0.1 (protótipo)
+      </div>
+    </aside>
+    <main class="panel-form-login">
+      <div class="form-header">
+        <h2>Recuperar acesso</h2>
+        <p>Você receberá um e-mail com instruções.</p>
+      </div>
+      <div id="alertForgot" class="alert"></div>
+      <form id="forgotForm" autocomplete="off" novalidate>
+        <div class="login-field">
+          <label for="forgot-email">E-mail</label>
+          <input type="email" id="forgot-email" placeholder="seu.nome@mavebr.com" required autocomplete="email">
+        </div>
+        <button type="submit" class="btn-login">Enviar link de recuperação</button>
+      </form>
+      <div class="form-footer">
+        <a href="#" id="linkVoltarLoginForgot" style="color: var(--doca-orange); font-weight: 500; text-decoration: none;">Voltar ao login</a>
+      </div>
+    </main>
+  </div>
+  <!-- ============================================================ -->
+  <!-- TELA DE NOVA SENHA (apos clicar no link do email)            -->
+  <!-- ============================================================ -->
+  <div id="screen-reset" class="hidden">
+    <aside class="panel-brand">
+      <div class="brand-logo">
+        MAVE
+        <span>Grupo Doca · Sistema de Produção</span>
+      </div>
+      <div class="brand-content">
+        <h1>Defina uma nova senha.</h1>
+        <p>Escolha uma senha segura para continuar acessando o sistema.</p>
+      </div>
+      <div class="brand-footer">
+        © 2026 Mave Comércio de Acessórios Ltda · v0.1 (protótipo)
+      </div>
+    </aside>
+    <main class="panel-form-login">
+      <div class="form-header">
+        <h2>Nova senha</h2>
+        <p>Defina e confirme sua nova senha.</p>
+      </div>
+      <div id="alertReset" class="alert"></div>
+      <form id="resetForm" autocomplete="off" novalidate>
+        <div class="login-field">
+          <label for="reset-senha">Nova senha</label>
+          <div class="field-password">
+            <input type="password" id="reset-senha" placeholder="Mínimo 6 caracteres" required minlength="6">
+            <button type="button" class="toggle-password" id="toggleResetPassword">Mostrar</button>
+          </div>
+        </div>
+        <div class="login-field">
+          <label for="reset-confirma">Confirmar nova senha</label>
+          <input type="password" id="reset-confirma" placeholder="Repita a senha" required minlength="6">
+        </div>
+        <button type="submit" class="btn-login">Salvar nova senha</button>
+      </form>
     </main>
   </div>
   <!-- ============================================================ -->
@@ -490,7 +564,7 @@
   </div>
   <div class="toast" id="toast">Registro salvo com sucesso!</div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=10"></script>
-  <script src="app.js?v=10" defer></script>
+  <script src="supabase-config.js?v=11"></script>
+  <script src="app.js?v=11" defer></script>
 </body>
 </html>

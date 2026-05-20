@@ -208,6 +208,7 @@ const state = {
   configIds: { diametros: [], caixas: [], linhas: [], turnos: [], operadores: [], metas: [] },
   email: null,
   profile: null,
+  recovering: false,
   registros: { trancadeira: [], grampeadeira: [], extensor: [] },
   editing: { trancadeira: null, grampeadeira: null, extensor: null },
   filtros: {
@@ -223,33 +224,45 @@ const state = {
 const screenLogin = document.getElementById('screen-login');
 const screenSignup = document.getElementById('screen-signup');
 const screenPending = document.getElementById('screen-pending');
+const screenForgot = document.getElementById('screen-forgot');
+const screenReset = document.getElementById('screen-reset');
 const screenApp = document.getElementById('screen-app');
 
-function showLogin() {
-  screenLogin.classList.remove('hidden');
+function hideAuthScreens() {
+  screenLogin.classList.add('hidden');
   screenSignup.classList.add('hidden');
   if (screenPending) screenPending.classList.add('hidden');
+  if (screenForgot) screenForgot.classList.add('hidden');
+  if (screenReset) screenReset.classList.add('hidden');
   screenApp.style.display = 'none';
+}
+function showLogin() {
+  hideAuthScreens();
+  screenLogin.classList.remove('hidden');
   window.scrollTo(0, 0);
 }
 function showSignup() {
-  screenLogin.classList.add('hidden');
+  hideAuthScreens();
   screenSignup.classList.remove('hidden');
-  if (screenPending) screenPending.classList.add('hidden');
-  screenApp.style.display = 'none';
   window.scrollTo(0, 0);
 }
 function showPending() {
-  screenLogin.classList.add('hidden');
-  screenSignup.classList.add('hidden');
+  hideAuthScreens();
   if (screenPending) screenPending.classList.remove('hidden');
-  screenApp.style.display = 'none';
+  window.scrollTo(0, 0);
+}
+function showForgot() {
+  hideAuthScreens();
+  if (screenForgot) screenForgot.classList.remove('hidden');
+  window.scrollTo(0, 0);
+}
+function showReset() {
+  hideAuthScreens();
+  if (screenReset) screenReset.classList.remove('hidden');
   window.scrollTo(0, 0);
 }
 function showApp() {
-  screenLogin.classList.add('hidden');
-  screenSignup.classList.add('hidden');
-  if (screenPending) screenPending.classList.add('hidden');
+  hideAuthScreens();
   screenApp.style.display = 'block';
   window.scrollTo(0, 0);
 }
@@ -269,6 +282,15 @@ document.getElementById('toggleSignupPassword').addEventListener('click', () => 
   signupSenhaInput.type = isPwd ? 'text' : 'password';
   document.getElementById('toggleSignupPassword').textContent = isPwd ? 'Ocultar' : 'Mostrar';
 });
+const resetSenhaInput = document.getElementById('reset-senha');
+const toggleResetPasswordBtn = document.getElementById('toggleResetPassword');
+if (toggleResetPasswordBtn && resetSenhaInput) {
+  toggleResetPasswordBtn.addEventListener('click', () => {
+    const isPwd = resetSenhaInput.type === 'password';
+    resetSenhaInput.type = isPwd ? 'text' : 'password';
+    toggleResetPasswordBtn.textContent = isPwd ? 'Ocultar' : 'Mostrar';
+  });
+}
 
 // ============================================================
 // NAVEGAÇÃO ENTRE LOGIN E CADASTRO
@@ -284,6 +306,29 @@ document.getElementById('linkVoltarLogin').addEventListener('click', (e) => {
   document.getElementById('alert').classList.remove('show');
   showLogin();
 });
+const linkEsqueciSenha = document.getElementById('linkEsqueciSenha');
+if (linkEsqueciSenha) {
+  linkEsqueciSenha.addEventListener('click', (e) => {
+    e.preventDefault();
+    const alertForgot = document.getElementById('alertForgot');
+    if (alertForgot) alertForgot.classList.remove('show');
+    const forgotForm = document.getElementById('forgotForm');
+    if (forgotForm) {
+      forgotForm.reset();
+      const preset = document.getElementById('email').value.trim();
+      if (preset) document.getElementById('forgot-email').value = preset;
+    }
+    showForgot();
+  });
+}
+const linkVoltarLoginForgot = document.getElementById('linkVoltarLoginForgot');
+if (linkVoltarLoginForgot) {
+  linkVoltarLoginForgot.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('alert').classList.remove('show');
+    showLogin();
+  });
+}
 
 // ============================================================
 // LOGIN
@@ -394,6 +439,132 @@ signupForm.addEventListener('submit', async (e) => {
     alertBox.style.borderColor = '';
   }, 6000);
 });
+
+// ============================================================
+// ESQUECI A SENHA (envio do link)
+// ============================================================
+const forgotForm = document.getElementById('forgotForm');
+const alertForgot = document.getElementById('alertForgot');
+if (forgotForm) {
+  const btnForgot = forgotForm.querySelector('.btn-login');
+  forgotForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!sb) {
+      alertForgot.textContent = 'Supabase não configurado.';
+      alertForgot.classList.add('show');
+      return;
+    }
+    const email = document.getElementById('forgot-email').value.trim().toLowerCase();
+    if (!email) {
+      alertForgot.textContent = 'Informe seu e-mail.';
+      alertForgot.style.background = '';
+      alertForgot.style.color = '';
+      alertForgot.style.borderColor = '';
+      alertForgot.classList.add('show');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alertForgot.textContent = 'Digite um e-mail válido.';
+      alertForgot.style.background = '';
+      alertForgot.style.color = '';
+      alertForgot.style.borderColor = '';
+      alertForgot.classList.add('show');
+      return;
+    }
+    alertForgot.classList.remove('show');
+    btnForgot.textContent = 'Enviando...';
+    btnForgot.disabled = true;
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+    btnForgot.textContent = 'Enviar link de recuperação';
+    btnForgot.disabled = false;
+    if (error) {
+      alertForgot.textContent = traduzirErroAuth(error);
+      alertForgot.style.background = '';
+      alertForgot.style.color = '';
+      alertForgot.style.borderColor = '';
+      alertForgot.classList.add('show');
+      return;
+    }
+    alertForgot.textContent = 'Se este e-mail estiver cadastrado, você receberá um link em instantes. Verifique também a caixa de spam.';
+    alertForgot.style.background = 'var(--success-bg)';
+    alertForgot.style.color = 'var(--success)';
+    alertForgot.style.borderColor = '#B5DCC4';
+    alertForgot.classList.add('show');
+  });
+}
+
+// ============================================================
+// NOVA SENHA (apos PASSWORD_RECOVERY)
+// ============================================================
+const resetForm = document.getElementById('resetForm');
+const alertReset = document.getElementById('alertReset');
+if (resetForm) {
+  const btnReset = resetForm.querySelector('.btn-login');
+  resetForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!sb) {
+      alertReset.textContent = 'Supabase não configurado.';
+      alertReset.classList.add('show');
+      return;
+    }
+    const nova = resetSenhaInput.value;
+    const confirma = document.getElementById('reset-confirma').value;
+    if (!nova || !confirma) {
+      alertReset.textContent = 'Preencha os dois campos.';
+      alertReset.style.background = '';
+      alertReset.style.color = '';
+      alertReset.style.borderColor = '';
+      alertReset.classList.add('show');
+      return;
+    }
+    if (nova.length < 6) {
+      alertReset.textContent = 'A senha precisa ter pelo menos 6 caracteres.';
+      alertReset.style.background = '';
+      alertReset.style.color = '';
+      alertReset.style.borderColor = '';
+      alertReset.classList.add('show');
+      return;
+    }
+    if (nova !== confirma) {
+      alertReset.textContent = 'As senhas não coincidem.';
+      alertReset.style.background = '';
+      alertReset.style.color = '';
+      alertReset.style.borderColor = '';
+      alertReset.classList.add('show');
+      return;
+    }
+    alertReset.classList.remove('show');
+    btnReset.textContent = 'Salvando...';
+    btnReset.disabled = true;
+    const { error } = await sb.auth.updateUser({ password: nova });
+    btnReset.textContent = 'Salvar nova senha';
+    btnReset.disabled = false;
+    if (error) {
+      alertReset.textContent = traduzirErroAuth(error);
+      alertReset.style.background = '';
+      alertReset.style.color = '';
+      alertReset.style.borderColor = '';
+      alertReset.classList.add('show');
+      return;
+    }
+    state.recovering = false;
+    resetForm.reset();
+    try { history.replaceState({}, '', window.location.pathname); } catch (e2) {}
+    await sb.auth.signOut();
+    alertBox.textContent = 'Senha redefinida com sucesso. Entre com a nova senha.';
+    alertBox.style.background = 'var(--success-bg)';
+    alertBox.style.color = 'var(--success)';
+    alertBox.style.borderColor = '#B5DCC4';
+    alertBox.classList.add('show');
+    showLogin();
+    setTimeout(() => {
+      alertBox.style.background = '';
+      alertBox.style.color = '';
+      alertBox.style.borderColor = '';
+    }, 6000);
+  });
+}
 
 // ============================================================
 // LOGOUT + TEMA
@@ -1652,6 +1823,11 @@ async function bootstrap() {
 
   // Sincroniza UI quando o auth muda (ex.: logout em outra aba)
   sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      state.recovering = true;
+      showReset();
+      return;
+    }
     if (event === 'SIGNED_OUT' && state.email) {
       state.email = null;
       state.registros = { trancadeira: [], grampeadeira: [], extensor: [] };
@@ -1661,7 +1837,17 @@ async function bootstrap() {
     }
   });
 
+  // Se chegou via link de recuperacao, mostra tela de nova senha
+  // (o evento PASSWORD_RECOVERY pode ainda nao ter disparado)
+  const hash = window.location.hash || '';
+  if (/[#&]type=recovery\b/.test(hash)) {
+    state.recovering = true;
+    showReset();
+    return;
+  }
+
   const { data: { session } } = await sb.auth.getSession();
+  if (state.recovering) return;
   if (session && session.user) {
     if (lembrarCheckbox) lembrarCheckbox.checked = true;
     await enterApp(session.user.email);
