@@ -135,16 +135,18 @@ const TO_DB = {
 // DATA LAYER (Supabase)
 // ============================================================
 async function dbLoadConfig() {
-  const [coresRes, itemsRes, opsRes, linhasRes] = await Promise.all([
+  const [coresRes, itemsRes, opsRes, linhasRes, turnosRes] = await Promise.all([
     sb.from('cores').select('*').order('created_at', { ascending: true }),
     sb.from('config_items').select('*').order('created_at', { ascending: true }),
     sb.from('operadores').select('*').order('created_at', { ascending: true }),
     sb.from('linhas').select('*').order('created_at', { ascending: true }),
+    sb.from('turnos').select('*').order('created_at', { ascending: true }),
   ]);
   if (coresRes.error) throw coresRes.error;
   if (itemsRes.error) throw itemsRes.error;
   if (opsRes.error) throw opsRes.error;
   if (linhasRes.error) throw linhasRes.error;
+  if (turnosRes.error) throw turnosRes.error;
 
   const items = itemsRes.data || [];
   const byTipo = (tipo) => items.filter(i => i.tipo === tipo);
@@ -161,11 +163,16 @@ async function dbLoadConfig() {
     nome: l.nome,
     capacidade: l.capacidade_produtiva != null ? Number(l.capacidade_produtiva) : null,
   }));
+  const turnosList = (turnosRes.data || []).map(t => ({
+    id: t.id,
+    nome: t.nome,
+    hi: t.hora_inicio || '',
+    hf: t.hora_fim || '',
+  }));
 
   state.configIds = {
     diametros: byTipo('diametro').map(i => i.id),
     caixas:    byTipo('caixa').map(i => i.id),
-    turnos:    byTipo('turno').map(i => i.id),
     metas:     byTipo('meta').map(i => i.id),
   };
 
@@ -174,7 +181,7 @@ async function dbLoadConfig() {
     diametros: byTipo('diametro').map(i => i.valor),
     caixas:    byTipo('caixa').map(i => i.valor),
     linhas:    linhasList,
-    turnos:    byTipo('turno').map(i => i.valor),
+    turnos:    turnosList,
     operadores: operadoresList,
     metas:     byTipo('meta').map(i => i.valor),
   };
@@ -220,7 +227,7 @@ function toggleTheme() { setTheme(getTheme() === 'dark' ? 'light' : 'dark'); }
 // ============================================================
 const state = {
   config: { cores: [], diametros: [], caixas: [], linhas: [], turnos: [], operadores: [], metas: [] },
-  configIds: { diametros: [], caixas: [], turnos: [], metas: [] },
+  configIds: { diametros: [], caixas: [], metas: [] },
   email: null,
   profile: null,
   recovering: false,
@@ -856,7 +863,6 @@ const CONFIG_LISTS = [
   { listId: 'list-cores',      key: 'cores',      isCor: true,  inputId: 'input-cor' },
   { listId: 'list-diametros',  key: 'diametros',  isCor: false, inputId: 'input-diametro' },
   { listId: 'list-caixas',     key: 'caixas',     isCor: false, inputId: 'input-caixa' },
-  { listId: 'list-turnos',     key: 'turnos',     isCor: false, inputId: 'input-turno' },
   { listId: 'list-metas',      key: 'metas',      isCor: false, inputId: 'input-meta' },
 ];
 const metaForListId = (id) => CONFIG_LISTS.find(m => m.listId === id);
@@ -883,6 +889,7 @@ function renderAllConfigLists() {
   populateOpTurnoSelect();
   renderOperadoresTable();
   renderLinhasTable();
+  renderTurnosTable();
 }
 
 function normForCompare(s) {
@@ -1043,6 +1050,12 @@ function attachConfigActionHandlers() {
 // ============================================================
 // OPERADORES (tabela dedicada)
 // ============================================================
+function formatTurnoLabel(t) {
+  if (!t) return '';
+  if (t.hi && t.hf) return `${t.nome} · ${t.hi} às ${t.hf}`;
+  return t.nome;
+}
+
 function populateOpTurnoSelect() {
   const sel = document.getElementById('op-turno');
   if (!sel) return;
@@ -1054,8 +1067,9 @@ function populateOpTurnoSelect() {
   sel.appendChild(placeholder);
   for (const t of (state.config.turnos || [])) {
     const o = document.createElement('option');
-    o.value = t;
-    o.textContent = t;
+    const label = formatTurnoLabel(t);
+    o.value = label;
+    o.textContent = label;
     sel.appendChild(o);
   }
   if (previous && [...sel.options].some(o => o.value === previous)) sel.value = previous;
@@ -1238,6 +1252,84 @@ async function removeLinha(id) {
 
 const btnAddLinha = document.getElementById('btn-add-linha');
 if (btnAddLinha) btnAddLinha.addEventListener('click', addLinhaFromForm);
+
+// ============================================================
+// TURNOS (tabela dedicada)
+// ============================================================
+function renderTurnosTable() {
+  const tbody = document.getElementById('tbody-turnos');
+  if (!tbody) return;
+  const turnos = state.config.turnos || [];
+  if (turnos.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Nenhum turno cadastrado.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '';
+  turnos.forEach((t) => {
+    const tr = document.createElement('tr');
+    tr.dataset.id = t.id;
+    tr.innerHTML =
+      `<td>${escapeHtml(t.nome)}</td>` +
+      `<td>${escapeHtml(t.hi || '—')}</td>` +
+      `<td>${escapeHtml(t.hf || '—')}</td>` +
+      `<td class="td-actions"><button class="tn-remove" type="button">Remover</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('.tn-remove').forEach(btn => {
+    btn.onclick = () => removeTurno(btn.closest('tr').dataset.id);
+  });
+}
+
+async function addTurnoFromForm() {
+  if (!sb) return;
+  const nome = document.getElementById('tn-nome').value.trim();
+  if (!nome) { showToast('Informe o nome do turno.', 'error'); return; }
+  const hi = document.getElementById('tn-hi').value || null;
+  const hf = document.getElementById('tn-hf').value || null;
+
+  const nomeNorm = normForCompare(nome);
+  const dup = (state.config.turnos || []).find(t => normForCompare(t.nome) === nomeNorm);
+  if (dup) {
+    showToast(`Já existe um turno chamado "${nome}".`, 'error');
+    document.getElementById('tn-nome').focus();
+    return;
+  }
+
+  const { data, error } = await sb.from('turnos')
+    .insert({ nome, hora_inicio: hi, hora_fim: hf })
+    .select().single();
+  if (error) { showToast('Erro ao adicionar turno: ' + error.message, 'error'); return; }
+
+  state.config.turnos.push({
+    id: data.id,
+    nome: data.nome,
+    hi: data.hora_inicio || '',
+    hf: data.hora_fim || '',
+  });
+  document.getElementById('tn-nome').value = '';
+  document.getElementById('tn-hi').value = '';
+  document.getElementById('tn-hf').value = '';
+  renderTurnosTable();
+  renderDropdowns();
+  renderDashboard();
+  showToast('Turno adicionado.');
+}
+
+async function removeTurno(id) {
+  if (!sb || !id) return;
+  const t = (state.config.turnos || []).find(x => x.id === id);
+  const label = t ? t.nome : 'este turno';
+  if (!confirm(`Remover ${label}? Essa ação não pode ser desfeita.`)) return;
+  const { error } = await sb.from('turnos').delete().eq('id', id);
+  if (error) { showToast('Erro ao remover: ' + error.message, 'error'); return; }
+  state.config.turnos = state.config.turnos.filter(x => x.id !== id);
+  renderTurnosTable();
+  renderDropdowns();
+  renderDashboard();
+}
+
+const btnAddTurno = document.getElementById('btn-add-turno');
+if (btnAddTurno) btnAddTurno.addEventListener('click', addTurnoFromForm);
 
 // ============================================================
 // REGISTROS — TABELAS, EDIT, REMOVE
