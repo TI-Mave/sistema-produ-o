@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=14">
+  <link rel="stylesheet" href="styles.css?v=15">
 
 </head>
 <body>
@@ -503,12 +503,25 @@
               <button onclick="addItem('list-turnos', 'input-turno')">Adicionar</button>
             </div>
           </div>
-          <div class="card config-card">
+          <div class="card config-card config-card-wide">
             <h3>Operadores</h3>
-            <ul class="config-list" id="list-operadores"></ul>
-            <div class="config-add">
-              <input type="text" placeholder="Nome (matrícula)" id="input-operador">
-              <button onclick="addItem('list-operadores', 'input-operador')">Adicionar</button>
+            <div class="config-form-grid">
+              <div class="field"><label for="op-nome">Nome</label><input type="text" id="op-nome" placeholder="Ex.: João Silva"></div>
+              <div class="field"><label for="op-matricula">Nº Matrícula</label><input type="text" id="op-matricula" inputmode="numeric" pattern="\d*" placeholder="Ex.: 12345"></div>
+              <div class="field"><label for="op-funcao">Função</label><input type="text" id="op-funcao" placeholder="Ex.: Operador grampeadeira"></div>
+              <div class="field"><label for="op-turno">Turno</label><select id="op-turno"></select></div>
+              <div class="field"><label for="op-capacidade">Capacidade Produtiva</label><input type="number" step="0.01" min="0" id="op-capacidade" placeholder="Ex.: 350"></div>
+              <div class="field op-btn-field"><button type="button" id="btn-add-operador" class="btn btn-primary">Adicionar operador</button></div>
+            </div>
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr><th>Nome</th><th>Matrícula</th><th>Função</th><th>Turno</th><th>Capacidade</th><th class="th-actions">Ações</th></tr>
+                </thead>
+                <tbody id="tbody-operadores">
+                  <tr><td colspan="6" class="empty-state">Nenhum operador cadastrado.</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
           <div class="card config-card">
@@ -564,7 +577,7 @@
   </div>
   <div class="toast" id="toast">Registro salvo com sucesso!</div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=14"></script>
-  <script src="app.js?v=14" defer></script>
+  <script src="supabase-config.js?v=15"></script>
+  <script src="app.js?v=15" defer></script>
 </body>
 </html>

@@ -587,6 +587,32 @@ tbody tr:hover { background: var(--surface-2); }
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 20px;
 }
+.config-card-wide { grid-column: 1 / -1; }
+.config-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.config-form-grid .field { display: flex; flex-direction: column; gap: 4px; }
+.config-form-grid .field label { font-size: 12px; color: var(--ink-2); font-weight: 500; }
+.config-form-grid .field input,
+.config-form-grid .field select {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+}
+.config-form-grid .field input:focus,
+.config-form-grid .field select:focus {
+  outline: none;
+  border-color: var(--doca-orange);
+  box-shadow: var(--shadow-focus);
+}
+.config-form-grid .op-btn-field { justify-content: flex-end; }
+.config-form-grid .op-btn-field .btn { height: 38px; }
 .config-card h3 {
   font-size: 14px;
   font-weight: 600;

@@ -135,22 +135,31 @@ const TO_DB = {
 // DATA LAYER (Supabase)
 // ============================================================
 async function dbLoadConfig() {
-  const [coresRes, itemsRes] = await Promise.all([
+  const [coresRes, itemsRes, opsRes] = await Promise.all([
     sb.from('cores').select('*').order('created_at', { ascending: true }),
     sb.from('config_items').select('*').order('created_at', { ascending: true }),
+    sb.from('operadores').select('*').order('created_at', { ascending: true }),
   ]);
   if (coresRes.error) throw coresRes.error;
   if (itemsRes.error) throw itemsRes.error;
+  if (opsRes.error) throw opsRes.error;
 
   const items = itemsRes.data || [];
   const byTipo = (tipo) => items.filter(i => i.tipo === tipo);
+  const operadoresList = (opsRes.data || []).map(o => ({
+    id: o.id,
+    nome: o.nome,
+    matricula: o.matricula || '',
+    funcao: o.funcao || '',
+    turno: o.turno || '',
+    capacidade: o.capacidade_produtiva != null ? Number(o.capacidade_produtiva) : null,
+  }));
 
   state.configIds = {
     diametros: byTipo('diametro').map(i => i.id),
     caixas:    byTipo('caixa').map(i => i.id),
     linhas:    byTipo('linha').map(i => i.id),
     turnos:    byTipo('turno').map(i => i.id),
-    operadores:byTipo('operador').map(i => i.id),
     metas:     byTipo('meta').map(i => i.id),
   };
 
@@ -160,7 +169,7 @@ async function dbLoadConfig() {
     caixas:    byTipo('caixa').map(i => i.valor),
     linhas:    byTipo('linha').map(i => i.valor),
     turnos:    byTipo('turno').map(i => i.valor),
-    operadores:byTipo('operador').map(i => i.valor),
+    operadores: operadoresList,
     metas:     byTipo('meta').map(i => i.valor),
   };
 }
@@ -205,7 +214,7 @@ function toggleTheme() { setTheme(getTheme() === 'dark' ? 'light' : 'dark'); }
 // ============================================================
 const state = {
   config: { cores: [], diametros: [], caixas: [], linhas: [], turnos: [], operadores: [], metas: [] },
-  configIds: { diametros: [], caixas: [], linhas: [], turnos: [], operadores: [], metas: [] },
+  configIds: { diametros: [], caixas: [], linhas: [], turnos: [], metas: [] },
   email: null,
   profile: null,
   recovering: false,
@@ -777,8 +786,8 @@ function renderOperatorFilter() {
   sel.appendChild(all);
   for (const op of (state.config.operadores || [])) {
     const o = document.createElement('option');
-    o.value = op;
-    o.textContent = op;
+    o.value = op.nome;
+    o.textContent = op.nome;
     sel.appendChild(o);
   }
   if (target && ![...sel.options].some(o => o.value === target)) {
@@ -826,11 +835,12 @@ function renderDropdowns() {
   fillSelect('t-linha', cfg.linhas);
   fillSelect('t-cor', corNomes);
   fillSelect('t-diametro', cfg.diametros);
-  fillSelect('g-operador', cfg.operadores);
+  fillSelect('g-operador', (cfg.operadores || []).map(o => o.nome));
   fillSelect('e-tipo-caixa', cfg.caixas);
   fillSelect('e-cor', corNomes);
   fillSelect('e-diametro', cfg.diametros);
   renderOperatorFilter();
+  populateOpTurnoSelect();
 }
 
 // ============================================================
@@ -842,7 +852,6 @@ const CONFIG_LISTS = [
   { listId: 'list-caixas',     key: 'caixas',     isCor: false, inputId: 'input-caixa' },
   { listId: 'list-linhas',     key: 'linhas',     isCor: false, inputId: 'input-linha' },
   { listId: 'list-turnos',     key: 'turnos',     isCor: false, inputId: 'input-turno' },
-  { listId: 'list-operadores', key: 'operadores', isCor: false, inputId: 'input-operador' },
   { listId: 'list-metas',      key: 'metas',      isCor: false, inputId: 'input-meta' },
 ];
 const metaForListId = (id) => CONFIG_LISTS.find(m => m.listId === id);
@@ -872,6 +881,8 @@ function renderConfigList(meta) {
 function renderAllConfigLists() {
   for (const meta of CONFIG_LISTS) renderConfigList(meta);
   attachConfigActionHandlers();
+  populateOpTurnoSelect();
+  renderOperadoresTable();
 }
 
 window.addItem = async function(listId, inputId) {
@@ -1004,6 +1015,110 @@ function attachConfigActionHandlers() {
     btn.onclick = () => cancelConfigEdit(btn.closest('li'));
   });
 }
+
+// ============================================================
+// OPERADORES (tabela dedicada)
+// ============================================================
+function populateOpTurnoSelect() {
+  const sel = document.getElementById('op-turno');
+  if (!sel) return;
+  const previous = sel.value;
+  sel.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Selecione…';
+  sel.appendChild(placeholder);
+  for (const t of (state.config.turnos || [])) {
+    const o = document.createElement('option');
+    o.value = t;
+    o.textContent = t;
+    sel.appendChild(o);
+  }
+  if (previous && [...sel.options].some(o => o.value === previous)) sel.value = previous;
+}
+
+function renderOperadoresTable() {
+  const tbody = document.getElementById('tbody-operadores');
+  if (!tbody) return;
+  const ops = state.config.operadores || [];
+  if (ops.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum operador cadastrado.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '';
+  ops.forEach((op) => {
+    const tr = document.createElement('tr');
+    tr.dataset.id = op.id;
+    tr.innerHTML =
+      `<td>${escapeHtml(op.nome)}</td>` +
+      `<td>${escapeHtml(op.matricula || '—')}</td>` +
+      `<td>${escapeHtml(op.funcao || '—')}</td>` +
+      `<td>${escapeHtml(op.turno || '—')}</td>` +
+      `<td>${op.capacidade != null ? escapeHtml(String(op.capacidade)) : '—'}</td>` +
+      `<td class="td-actions"><button class="op-remove" type="button">Remover</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('.op-remove').forEach(btn => {
+    btn.onclick = () => removeOperador(btn.closest('tr').dataset.id);
+  });
+}
+
+async function addOperadorFromForm() {
+  if (!sb) return;
+  const nome = document.getElementById('op-nome').value.trim();
+  if (!nome) {
+    showToast('Informe o nome do operador.', 'error');
+    return;
+  }
+  const matricula = document.getElementById('op-matricula').value.trim() || null;
+  const funcao = document.getElementById('op-funcao').value.trim() || null;
+  const turno = document.getElementById('op-turno').value || null;
+  const capRaw = document.getElementById('op-capacidade').value.trim();
+  const capacidade = capRaw ? parseFloat(capRaw) : null;
+
+  const { data, error } = await sb.from('operadores')
+    .insert({ nome, matricula, funcao, turno, capacidade_produtiva: capacidade })
+    .select().single();
+  if (error) { showToast('Erro ao adicionar operador: ' + error.message, 'error'); return; }
+
+  state.config.operadores.push({
+    id: data.id,
+    nome: data.nome,
+    matricula: data.matricula || '',
+    funcao: data.funcao || '',
+    turno: data.turno || '',
+    capacidade: data.capacidade_produtiva != null ? Number(data.capacidade_produtiva) : null,
+  });
+  document.getElementById('op-nome').value = '';
+  document.getElementById('op-matricula').value = '';
+  document.getElementById('op-funcao').value = '';
+  document.getElementById('op-turno').value = '';
+  document.getElementById('op-capacidade').value = '';
+  renderOperadoresTable();
+  renderDropdowns();
+  renderDashboard();
+  showToast('Operador adicionado.');
+}
+
+async function removeOperador(id) {
+  if (!sb || !id) return;
+  const { error } = await sb.from('operadores').delete().eq('id', id);
+  if (error) { showToast('Erro ao remover: ' + error.message, 'error'); return; }
+  state.config.operadores = state.config.operadores.filter(o => o.id !== id);
+  renderOperadoresTable();
+  renderDropdowns();
+  renderDashboard();
+}
+
+const opMatriculaInput = document.getElementById('op-matricula');
+if (opMatriculaInput) {
+  opMatriculaInput.addEventListener('input', () => {
+    const d = opMatriculaInput.value.replace(/\D+/g, '');
+    if (d !== opMatriculaInput.value) opMatriculaInput.value = d;
+  });
+}
+const btnAddOperador = document.getElementById('btn-add-operador');
+if (btnAddOperador) btnAddOperador.addEventListener('click', addOperadorFromForm);
 
 // ============================================================
 // REGISTROS — TABELAS, EDIT, REMOVE
@@ -1208,7 +1323,7 @@ function fillFormFromRegistro(kind, r) {
     document.getElementById('g-data').value = r.data || todayISO();
     document.getElementById('g-hi').value = r.hi || '';
     document.getElementById('g-hf').value = r.hf || '';
-    fillSelect('g-operador', state.config.operadores, r.operador);
+    fillSelect('g-operador', (state.config.operadores || []).map(o => o.nome), r.operador);
     document.getElementById('g-operador').value = r.operador || '';
     document.getElementById('g-qtd').value = r.qtd || '';
     document.getElementById('g-tam').value = r.tam || '';
