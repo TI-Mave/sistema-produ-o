@@ -587,6 +587,7 @@ tbody tr:hover { background: var(--surface-2); }
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 20px;
 }
+.config-card { display: flex; flex-direction: column; }
 .config-card-wide { grid-column: 1 / -1; }
 .config-form-grid {
   display: grid;
@@ -620,7 +621,9 @@ tbody tr:hover { background: var(--surface-2); }
 }
 .config-list {
   list-style: none;
-  max-height: 200px;
+  flex: 1;
+  min-height: 120px;
+  max-height: 320px;
   overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: 6px;
