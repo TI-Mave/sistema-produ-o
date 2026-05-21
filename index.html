@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=22">
+  <link rel="stylesheet" href="styles.css?v=23">
 
 </head>
 <body>
@@ -463,28 +463,33 @@
           <p>Cadastros de referência usados nos formulários de registro.</p>
         </div>
         <div class="config-grid">
-          <div class="card config-card">
-            <h3>Cores</h3>
-            <ul class="config-list" id="list-cores"></ul>
-            <div class="config-add">
-              <input type="text" placeholder="Nova cor" id="input-cor">
-              <button onclick="addItem('list-cores', 'input-cor')">Adicionar</button>
-            </div>
-          </div>
-          <div class="card config-card">
-            <h3>Diâmetros (mm)</h3>
-            <ul class="config-list" id="list-diametros"></ul>
-            <div class="config-add">
-              <input type="text" placeholder="Novo diâmetro" id="input-diametro">
-              <button onclick="addItem('list-diametros', 'input-diametro')">Adicionar</button>
-            </div>
-          </div>
-          <div class="card config-card">
-            <h3>Tipos de Caixa</h3>
-            <ul class="config-list" id="list-caixas"></ul>
-            <div class="config-add">
-              <input type="text" placeholder="Novo tipo" id="input-caixa">
-              <button onclick="addItem('list-caixas', 'input-caixa')">Adicionar</button>
+          <div class="card config-card config-card-wide">
+            <h3>Listas de referência</h3>
+            <div class="config-trio">
+              <div class="config-trio-item">
+                <h4>Cores</h4>
+                <ul class="config-list" id="list-cores"></ul>
+                <div class="config-add">
+                  <input type="text" placeholder="Nova cor" id="input-cor">
+                  <button onclick="addItem('list-cores', 'input-cor')">Adicionar</button>
+                </div>
+              </div>
+              <div class="config-trio-item">
+                <h4>Diâmetros (mm)</h4>
+                <ul class="config-list" id="list-diametros"></ul>
+                <div class="config-add">
+                  <input type="text" placeholder="Novo diâmetro" id="input-diametro">
+                  <button onclick="addItem('list-diametros', 'input-diametro')">Adicionar</button>
+                </div>
+              </div>
+              <div class="config-trio-item">
+                <h4>Tipos de Caixa</h4>
+                <ul class="config-list" id="list-caixas"></ul>
+                <div class="config-add">
+                  <input type="text" placeholder="Novo tipo" id="input-caixa">
+                  <button onclick="addItem('list-caixas', 'input-caixa')">Adicionar</button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="card config-card config-card-wide">
@@ -616,7 +621,7 @@
   </div>
   <div class="toast" id="toast">Registro salvo com sucesso!</div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=22"></script>
-  <script src="app.js?v=22" defer></script>
+  <script src="supabase-config.js?v=23"></script>
+  <script src="app.js?v=23" defer></script>
 </body>
 </html>
