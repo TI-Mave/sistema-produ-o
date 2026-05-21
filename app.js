@@ -1376,6 +1376,15 @@ heFlag.addEventListener('change', () => {
   heBlock.classList.toggle('show', heFlag.checked);
 });
 
+// Nº O.P. (grampeadeira) — somente digitos
+const gOpInput = document.getElementById('g-op');
+if (gOpInput) {
+  gOpInput.addEventListener('input', () => {
+    const onlyDigits = gOpInput.value.replace(/\D+/g, '');
+    if (onlyDigits !== gOpInput.value) gOpInput.value = onlyDigits;
+  });
+}
+
 document.getElementById('form-trancadeira').addEventListener('submit', (e) => {
   e.preventDefault();
   submitRegistro('trancadeira', e.target);
