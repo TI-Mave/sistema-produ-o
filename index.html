@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=17">
+  <link rel="stylesheet" href="styles.css?v=18">
 
 </head>
 <body>
@@ -487,12 +487,22 @@
               <button onclick="addItem('list-caixas', 'input-caixa')">Adicionar</button>
             </div>
           </div>
-          <div class="card config-card">
+          <div class="card config-card config-card-wide">
             <h3>Linhas de Produção</h3>
-            <ul class="config-list" id="list-linhas"></ul>
-            <div class="config-add">
-              <input type="text" placeholder="Nova linha" id="input-linha">
-              <button onclick="addItem('list-linhas', 'input-linha')">Adicionar</button>
+            <div class="config-form-grid">
+              <div class="field"><label for="ln-nome">Linha</label><input type="text" id="ln-nome" placeholder="Ex.: Linha 1"></div>
+              <div class="field"><label for="ln-capacidade">Capacidade Produtiva</label><input type="number" step="0.01" min="0" id="ln-capacidade" placeholder="Ex.: 1200"></div>
+              <div class="field op-btn-field"><button type="button" id="btn-add-linha" class="btn btn-primary">Adicionar linha</button></div>
+            </div>
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr><th>Linha</th><th>Capacidade</th><th class="th-actions">Ações</th></tr>
+                </thead>
+                <tbody id="tbody-linhas">
+                  <tr><td colspan="3" class="empty-state">Nenhuma linha cadastrada.</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
           <div class="card config-card">
@@ -577,7 +587,7 @@
   </div>
   <div class="toast" id="toast">Registro salvo com sucesso!</div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=17"></script>
-  <script src="app.js?v=17" defer></script>
+  <script src="supabase-config.js?v=18"></script>
+  <script src="app.js?v=18" defer></script>
 </body>
 </html>

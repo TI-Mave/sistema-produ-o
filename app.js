@@ -135,14 +135,16 @@ const TO_DB = {
 // DATA LAYER (Supabase)
 // ============================================================
 async function dbLoadConfig() {
-  const [coresRes, itemsRes, opsRes] = await Promise.all([
+  const [coresRes, itemsRes, opsRes, linhasRes] = await Promise.all([
     sb.from('cores').select('*').order('created_at', { ascending: true }),
     sb.from('config_items').select('*').order('created_at', { ascending: true }),
     sb.from('operadores').select('*').order('created_at', { ascending: true }),
+    sb.from('linhas').select('*').order('created_at', { ascending: true }),
   ]);
   if (coresRes.error) throw coresRes.error;
   if (itemsRes.error) throw itemsRes.error;
   if (opsRes.error) throw opsRes.error;
+  if (linhasRes.error) throw linhasRes.error;
 
   const items = itemsRes.data || [];
   const byTipo = (tipo) => items.filter(i => i.tipo === tipo);
@@ -154,11 +156,15 @@ async function dbLoadConfig() {
     turno: o.turno || '',
     capacidade: o.capacidade_produtiva != null ? Number(o.capacidade_produtiva) : null,
   }));
+  const linhasList = (linhasRes.data || []).map(l => ({
+    id: l.id,
+    nome: l.nome,
+    capacidade: l.capacidade_produtiva != null ? Number(l.capacidade_produtiva) : null,
+  }));
 
   state.configIds = {
     diametros: byTipo('diametro').map(i => i.id),
     caixas:    byTipo('caixa').map(i => i.id),
-    linhas:    byTipo('linha').map(i => i.id),
     turnos:    byTipo('turno').map(i => i.id),
     metas:     byTipo('meta').map(i => i.id),
   };
@@ -167,7 +173,7 @@ async function dbLoadConfig() {
     cores:     (coresRes.data || []).map(c => ({ id: c.id, nome: c.nome, hex: c.hex })),
     diametros: byTipo('diametro').map(i => i.valor),
     caixas:    byTipo('caixa').map(i => i.valor),
-    linhas:    byTipo('linha').map(i => i.valor),
+    linhas:    linhasList,
     turnos:    byTipo('turno').map(i => i.valor),
     operadores: operadoresList,
     metas:     byTipo('meta').map(i => i.valor),
@@ -214,7 +220,7 @@ function toggleTheme() { setTheme(getTheme() === 'dark' ? 'light' : 'dark'); }
 // ============================================================
 const state = {
   config: { cores: [], diametros: [], caixas: [], linhas: [], turnos: [], operadores: [], metas: [] },
-  configIds: { diametros: [], caixas: [], linhas: [], turnos: [], metas: [] },
+  configIds: { diametros: [], caixas: [], turnos: [], metas: [] },
   email: null,
   profile: null,
   recovering: false,
@@ -832,7 +838,7 @@ function renderDropdowns() {
   const cfg = state.config;
   const corNomes = cfg.cores.map(c => c.nome);
   fillSelect('t-tipo-caixa', cfg.caixas);
-  fillSelect('t-linha', cfg.linhas);
+  fillSelect('t-linha', (cfg.linhas || []).map(l => l.nome));
   fillSelect('t-cor', corNomes);
   fillSelect('t-diametro', cfg.diametros);
   fillSelect('g-operador', (cfg.operadores || []).map(o => o.nome));
@@ -850,7 +856,6 @@ const CONFIG_LISTS = [
   { listId: 'list-cores',      key: 'cores',      isCor: true,  inputId: 'input-cor' },
   { listId: 'list-diametros',  key: 'diametros',  isCor: false, inputId: 'input-diametro' },
   { listId: 'list-caixas',     key: 'caixas',     isCor: false, inputId: 'input-caixa' },
-  { listId: 'list-linhas',     key: 'linhas',     isCor: false, inputId: 'input-linha' },
   { listId: 'list-turnos',     key: 'turnos',     isCor: false, inputId: 'input-turno' },
   { listId: 'list-metas',      key: 'metas',      isCor: false, inputId: 'input-meta' },
 ];
@@ -877,6 +882,7 @@ function renderAllConfigLists() {
   attachConfigActionHandlers();
   populateOpTurnoSelect();
   renderOperadoresTable();
+  renderLinhasTable();
 }
 
 function normForCompare(s) {
@@ -1159,6 +1165,81 @@ const btnAddOperador = document.getElementById('btn-add-operador');
 if (btnAddOperador) btnAddOperador.addEventListener('click', addOperadorFromForm);
 
 // ============================================================
+// LINHAS DE PRODUCAO (tabela dedicada)
+// ============================================================
+function renderLinhasTable() {
+  const tbody = document.getElementById('tbody-linhas');
+  if (!tbody) return;
+  const linhas = state.config.linhas || [];
+  if (linhas.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Nenhuma linha cadastrada.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '';
+  linhas.forEach((l) => {
+    const tr = document.createElement('tr');
+    tr.dataset.id = l.id;
+    tr.innerHTML =
+      `<td>${escapeHtml(l.nome)}</td>` +
+      `<td>${l.capacidade != null ? escapeHtml(String(l.capacidade)) : '—'}</td>` +
+      `<td class="td-actions"><button class="ln-remove" type="button">Remover</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('.ln-remove').forEach(btn => {
+    btn.onclick = () => removeLinha(btn.closest('tr').dataset.id);
+  });
+}
+
+async function addLinhaFromForm() {
+  if (!sb) return;
+  const nome = document.getElementById('ln-nome').value.trim();
+  if (!nome) { showToast('Informe o nome da linha.', 'error'); return; }
+  const capRaw = document.getElementById('ln-capacidade').value.trim();
+  const capacidade = capRaw ? parseFloat(capRaw) : null;
+
+  const nomeNorm = normForCompare(nome);
+  const dup = (state.config.linhas || []).find(l => normForCompare(l.nome) === nomeNorm);
+  if (dup) {
+    showToast(`Já existe uma linha chamada "${nome}".`, 'error');
+    document.getElementById('ln-nome').focus();
+    return;
+  }
+
+  const { data, error } = await sb.from('linhas')
+    .insert({ nome, capacidade_produtiva: capacidade })
+    .select().single();
+  if (error) { showToast('Erro ao adicionar linha: ' + error.message, 'error'); return; }
+
+  state.config.linhas.push({
+    id: data.id,
+    nome: data.nome,
+    capacidade: data.capacidade_produtiva != null ? Number(data.capacidade_produtiva) : null,
+  });
+  document.getElementById('ln-nome').value = '';
+  document.getElementById('ln-capacidade').value = '';
+  renderLinhasTable();
+  renderDropdowns();
+  renderDashboard();
+  showToast('Linha adicionada.');
+}
+
+async function removeLinha(id) {
+  if (!sb || !id) return;
+  const l = (state.config.linhas || []).find(x => x.id === id);
+  const label = l ? l.nome : 'esta linha';
+  if (!confirm(`Remover ${label}? Essa ação não pode ser desfeita.`)) return;
+  const { error } = await sb.from('linhas').delete().eq('id', id);
+  if (error) { showToast('Erro ao remover: ' + error.message, 'error'); return; }
+  state.config.linhas = state.config.linhas.filter(x => x.id !== id);
+  renderLinhasTable();
+  renderDropdowns();
+  renderDashboard();
+}
+
+const btnAddLinha = document.getElementById('btn-add-linha');
+if (btnAddLinha) btnAddLinha.addEventListener('click', addLinhaFromForm);
+
+// ============================================================
 // REGISTROS — TABELAS, EDIT, REMOVE
 // ============================================================
 const TABLE_META = {
@@ -1353,7 +1434,7 @@ function fillFormFromRegistro(kind, r) {
   if (kind === 'trancadeira') {
     document.getElementById('t-data').value = r.data || todayISO();
     fillSelect('t-tipo-caixa', state.config.caixas, r.tipoCaixa);
-    fillSelect('t-linha', state.config.linhas, r.linha);
+    fillSelect('t-linha', (state.config.linhas || []).map(l => l.nome), r.linha);
     fillSelect('t-cor', state.config.cores.map(c => c.nome), r.cor);
     fillSelect('t-diametro', state.config.diametros, r.diametro);
     document.getElementById('t-tipo-caixa').value = r.tipoCaixa || '';
