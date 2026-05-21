@@ -1838,11 +1838,44 @@ async function bootstrap() {
   });
 
   // Se chegou via link de recuperacao, mostra tela de nova senha
-  // (o evento PASSWORD_RECOVERY pode ainda nao ter disparado)
+  // Suporta 3 formatos: hash #type=recovery (implicit), query ?token_hash=...&type=recovery
+  // (modelo de e-mail moderno) e query ?code=... (PKCE).
   const hash = window.location.hash || '';
+  const search = window.location.search || '';
+  const qs = new URLSearchParams(search);
+
   if (/[#&]type=recovery\b/.test(hash)) {
+    // Implicit flow: a propria lib troca pelo session e dispara PASSWORD_RECOVERY
     state.recovering = true;
     showReset();
+    return;
+  }
+
+  if (qs.get('type') === 'recovery' && qs.get('token_hash')) {
+    state.recovering = true;
+    showReset();
+    const { error: vErr } = await sb.auth.verifyOtp({
+      type: 'recovery',
+      token_hash: qs.get('token_hash'),
+    });
+    try { history.replaceState({}, '', window.location.pathname); } catch (e) {}
+    if (vErr) {
+      alertReset.textContent = 'Link inválido ou expirado. Solicite um novo link de recuperação.';
+      alertReset.classList.add('show');
+    }
+    return;
+  }
+
+  if (qs.get('code')) {
+    // PKCE flow: troca o code por sessao; o evento PASSWORD_RECOVERY vira a seguir
+    state.recovering = true;
+    showReset();
+    const { error: eErr } = await sb.auth.exchangeCodeForSession(qs.get('code'));
+    try { history.replaceState({}, '', window.location.pathname); } catch (e) {}
+    if (eErr) {
+      alertReset.textContent = 'Link inválido ou expirado. Solicite um novo link de recuperação.';
+      alertReset.classList.add('show');
+    }
     return;
   }
 

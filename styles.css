@@ -82,13 +82,17 @@ html, body {
 /* ============================================================ */
 #screen-login,
 #screen-signup,
-#screen-pending {
+#screen-pending,
+#screen-forgot,
+#screen-reset {
   display: flex;
   min-height: 100vh;
 }
 #screen-login.hidden,
 #screen-signup.hidden,
-#screen-pending.hidden { display: none !important; }
+#screen-pending.hidden,
+#screen-forgot.hidden,
+#screen-reset.hidden { display: none !important; }
 .panel-brand {
   flex: 1;
   background: linear-gradient(135deg, var(--doca-orange) 0%, var(--doca-orange-dark) 100%);
