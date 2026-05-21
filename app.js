@@ -1823,6 +1823,7 @@ async function bootstrap() {
 
   // Sincroniza UI quando o auth muda (ex.: logout em outra aba)
   sb.auth.onAuthStateChange((event, session) => {
+    console.log('[Mave][auth]', event, session ? 'com session' : 'sem session');
     if (event === 'PASSWORD_RECOVERY') {
       state.recovering = true;
       showReset();
@@ -1843,6 +1844,7 @@ async function bootstrap() {
   const hash = window.location.hash || '';
   const search = window.location.search || '';
   const qs = new URLSearchParams(search);
+  console.log('[Mave][bootstrap] hash=', hash, 'search=', search);
 
   if (/[#&]type=recovery\b/.test(hash)) {
     // Implicit flow: a propria lib troca pelo session e dispara PASSWORD_RECOVERY
