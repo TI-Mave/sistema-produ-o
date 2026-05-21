@@ -864,16 +864,10 @@ function renderConfigList(meta) {
   items.forEach((item, idx) => {
     const li = document.createElement('li');
     li.dataset.index = String(idx);
-    if (meta.isCor) {
-      const hex = item.hex || COR_HEX_FALLBACK;
-      li.innerHTML =
-        `<span class="item-text"><span class="color-dot" style="background:${escapeHtml(hex)};"></span>${escapeHtml(item.nome)}</span>` +
-        `<span class="item-actions"><button class="edit">Editar</button><button class="remove">Remover</button></span>`;
-    } else {
-      li.innerHTML =
-        `<span class="item-text">${escapeHtml(item)}</span>` +
-        `<span class="item-actions"><button class="edit">Editar</button><button class="remove">Remover</button></span>`;
-    }
+    const label = meta.isCor ? item.nome : item;
+    li.innerHTML =
+      `<span class="item-text">${escapeHtml(label)}</span>` +
+      `<span class="item-actions"><button class="edit">Editar</button><button class="remove">Remover</button></span>`;
     ul.appendChild(li);
   });
 }
@@ -885,6 +879,20 @@ function renderAllConfigLists() {
   renderOperadoresTable();
 }
 
+function normForCompare(s) {
+  return String(s || '').trim().toLowerCase();
+}
+
+function configHasDuplicate(meta, value, ignoreIdx = -1) {
+  const target = normForCompare(value);
+  const list = state.config[meta.key] || [];
+  return list.some((item, i) => {
+    if (i === ignoreIdx) return false;
+    const label = meta.isCor ? item.nome : item;
+    return normForCompare(label) === target;
+  });
+}
+
 window.addItem = async function(listId, inputId) {
   if (!sb) return;
   const input = document.getElementById(inputId);
@@ -892,6 +900,13 @@ window.addItem = async function(listId, inputId) {
   if (!value) return;
   const meta = metaForListId(listId);
   if (!meta) return;
+
+  if (configHasDuplicate(meta, value)) {
+    showToast(`Já existe um item com o valor "${value}".`, 'error');
+    input.focus();
+    input.select();
+    return;
+  }
 
   if (meta.isCor) {
     const { data, error } = await sb.from('cores')
@@ -925,12 +940,6 @@ function startConfigEdit(li) {
 
   const newSpan = document.createElement('span');
   newSpan.className = 'item-text';
-  if (meta.isCor) {
-    const dot = document.createElement('span');
-    dot.className = 'color-dot';
-    dot.style.background = state.config[meta.key][idx].hex || COR_HEX_FALLBACK;
-    newSpan.appendChild(dot);
-  }
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'edit-input';
@@ -954,6 +963,13 @@ async function saveConfigEdit(li) {
   if (!newValue) { input.focus(); return; }
   const meta = metaForListId(li.parentElement.id);
   const idx = Number(li.dataset.index);
+
+  if (configHasDuplicate(meta, newValue, idx)) {
+    showToast(`Já existe um item com o valor "${newValue}".`, 'error');
+    input.focus();
+    input.select();
+    return;
+  }
 
   if (meta.isCor) {
     const id = state.config[meta.key][idx].id;
@@ -982,6 +998,8 @@ async function removeConfigItem(li) {
   if (!sb) return;
   const meta = metaForListId(li.parentElement.id);
   const idx = Number(li.dataset.index);
+  const label = meta.isCor ? state.config[meta.key][idx].nome : state.config[meta.key][idx];
+  if (!confirm(`Remover "${label}"? Essa ação não pode ser desfeita.`)) return;
 
   if (meta.isCor) {
     const id = state.config[meta.key][idx].id;
@@ -1076,6 +1094,23 @@ async function addOperadorFromForm() {
   const capRaw = document.getElementById('op-capacidade').value.trim();
   const capacidade = capRaw ? parseFloat(capRaw) : null;
 
+  const nomeNorm = normForCompare(nome);
+  const matNorm = matricula ? normForCompare(matricula) : null;
+  const dupNome = state.config.operadores.find(o => normForCompare(o.nome) === nomeNorm);
+  if (dupNome) {
+    showToast(`Já existe um operador chamado "${nome}".`, 'error');
+    document.getElementById('op-nome').focus();
+    return;
+  }
+  if (matNorm) {
+    const dupMat = state.config.operadores.find(o => o.matricula && normForCompare(o.matricula) === matNorm);
+    if (dupMat) {
+      showToast(`Já existe um operador com a matrícula "${matricula}" (${dupMat.nome}).`, 'error');
+      document.getElementById('op-matricula').focus();
+      return;
+    }
+  }
+
   const { data, error } = await sb.from('operadores')
     .insert({ nome, matricula, funcao, turno, capacidade_produtiva: capacidade })
     .select().single();
@@ -1102,6 +1137,9 @@ async function addOperadorFromForm() {
 
 async function removeOperador(id) {
   if (!sb || !id) return;
+  const op = state.config.operadores.find(o => o.id === id);
+  const label = op ? op.nome : 'este operador';
+  if (!confirm(`Remover ${label}? Essa ação não pode ser desfeita.`)) return;
   const { error } = await sb.from('operadores').delete().eq('id', id);
   if (error) { showToast('Erro ao remover: ' + error.message, 'error'); return; }
   state.config.operadores = state.config.operadores.filter(o => o.id !== id);
@@ -1219,7 +1257,12 @@ async function removeRegistro(kind, id) {
   if (!sb) return;
   const r = findRegistro(kind, id);
   if (!r) return;
-  if (!confirm('Remover este registro?')) return;
+  const detalhe = (kind === 'grampeadeira')
+    ? `da grampeadeira (${r.data} · ${r.operador || '—'} · ${r.qtd} un)`
+    : (kind === 'trancadeira')
+      ? `da trançadeira (${r.data} · ${r.cor || '—'} · ${r.peso}kg)`
+      : `do extensor (${r.data} · ${r.cor || '—'} · ${r.qtd} un)`;
+  if (!confirm(`Remover o registro ${detalhe}? Essa ação não pode ser desfeita.`)) return;
   const { error } = await sb.from(TABLE_FOR[kind]).delete().eq('id', id);
   if (error) { showToast('Erro ao remover: ' + error.message, 'error'); return; }
   state.registros[kind] = state.registros[kind].filter(x => x.id !== id);
