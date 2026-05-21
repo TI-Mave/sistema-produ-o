@@ -587,8 +587,16 @@ tbody tr:hover { background: var(--surface-2); }
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 20px;
 }
-.config-card { display: flex; flex-direction: column; }
-.config-card-wide { grid-column: 1 / -1; }
+.config-card {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+}
+.config-card-wide {
+  grid-column: 1 / -1;
+  grid-template-rows: auto auto auto;
+  height: auto;
+}
 .config-form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -621,9 +629,7 @@ tbody tr:hover { background: var(--surface-2); }
 }
 .config-list {
   list-style: none;
-  flex: 1;
   min-height: 120px;
-  max-height: 320px;
   overflow-y: auto;
   border: 1px solid var(--line);
   border-radius: 6px;
