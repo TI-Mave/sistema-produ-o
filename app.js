@@ -135,18 +135,20 @@ const TO_DB = {
 // DATA LAYER (Supabase)
 // ============================================================
 async function dbLoadConfig() {
-  const [coresRes, itemsRes, opsRes, linhasRes, turnosRes] = await Promise.all([
+  const [coresRes, itemsRes, opsRes, linhasRes, turnosRes, metasRes] = await Promise.all([
     sb.from('cores').select('*').order('created_at', { ascending: true }),
     sb.from('config_items').select('*').order('created_at', { ascending: true }),
     sb.from('operadores').select('*').order('created_at', { ascending: true }),
     sb.from('linhas').select('*').order('created_at', { ascending: true }),
     sb.from('turnos').select('*').order('created_at', { ascending: true }),
+    sb.from('metas').select('*').order('created_at', { ascending: true }),
   ]);
   if (coresRes.error) throw coresRes.error;
   if (itemsRes.error) throw itemsRes.error;
   if (opsRes.error) throw opsRes.error;
   if (linhasRes.error) throw linhasRes.error;
   if (turnosRes.error) throw turnosRes.error;
+  if (metasRes.error) throw metasRes.error;
 
   const items = itemsRes.data || [];
   const byTipo = (tipo) => items.filter(i => i.tipo === tipo);
@@ -169,11 +171,16 @@ async function dbLoadConfig() {
     hi: t.hora_inicio || '',
     hf: t.hora_fim || '',
   }));
+  const metasList = (metasRes.data || []).map(m => ({
+    id: m.id,
+    tipo: m.tipo,
+    operador: m.operador || '',
+    valor: m.valor != null ? Number(m.valor) : 0,
+  }));
 
   state.configIds = {
     diametros: byTipo('diametro').map(i => i.id),
     caixas:    byTipo('caixa').map(i => i.id),
-    metas:     byTipo('meta').map(i => i.id),
   };
 
   return {
@@ -183,7 +190,7 @@ async function dbLoadConfig() {
     linhas:    linhasList,
     turnos:    turnosList,
     operadores: operadoresList,
-    metas:     byTipo('meta').map(i => i.valor),
+    metas:     metasList,
   };
 }
 
@@ -227,7 +234,7 @@ function toggleTheme() { setTheme(getTheme() === 'dark' ? 'light' : 'dark'); }
 // ============================================================
 const state = {
   config: { cores: [], diametros: [], caixas: [], linhas: [], turnos: [], operadores: [], metas: [] },
-  configIds: { diametros: [], caixas: [], metas: [] },
+  configIds: { diametros: [], caixas: [] },
   email: null,
   profile: null,
   recovering: false,
@@ -854,6 +861,7 @@ function renderDropdowns() {
   fillSelect('e-diametro', cfg.diametros);
   renderOperatorFilter();
   populateOpTurnoSelect();
+  populateMetaOperadorSelect();
 }
 
 // ============================================================
@@ -863,7 +871,6 @@ const CONFIG_LISTS = [
   { listId: 'list-cores',      key: 'cores',      isCor: true,  inputId: 'input-cor' },
   { listId: 'list-diametros',  key: 'diametros',  isCor: false, inputId: 'input-diametro' },
   { listId: 'list-caixas',     key: 'caixas',     isCor: false, inputId: 'input-caixa' },
-  { listId: 'list-metas',      key: 'metas',      isCor: false, inputId: 'input-meta' },
 ];
 const metaForListId = (id) => CONFIG_LISTS.find(m => m.listId === id);
 
@@ -887,9 +894,11 @@ function renderAllConfigLists() {
   for (const meta of CONFIG_LISTS) renderConfigList(meta);
   attachConfigActionHandlers();
   populateOpTurnoSelect();
+  populateMetaOperadorSelect();
   renderOperadoresTable();
   renderLinhasTable();
   renderTurnosTable();
+  renderMetasTable();
 }
 
 function normForCompare(s) {
@@ -1330,6 +1339,122 @@ async function removeTurno(id) {
 
 const btnAddTurno = document.getElementById('btn-add-turno');
 if (btnAddTurno) btnAddTurno.addEventListener('click', addTurnoFromForm);
+
+// ============================================================
+// METAS DE PRODUCAO (tabela dedicada)
+// ============================================================
+function populateMetaOperadorSelect() {
+  const sel = document.getElementById('mt-operador');
+  if (!sel) return;
+  const previous = sel.value;
+  sel.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Selecione…';
+  sel.appendChild(placeholder);
+  for (const op of (state.config.operadores || [])) {
+    const o = document.createElement('option');
+    o.value = op.nome;
+    o.textContent = op.nome;
+    sel.appendChild(o);
+  }
+  if (previous && [...sel.options].some(o => o.value === previous)) sel.value = previous;
+}
+
+function renderMetasTable() {
+  const tbody = document.getElementById('tbody-metas');
+  if (!tbody) return;
+  const metas = state.config.metas || [];
+  if (metas.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Nenhuma meta cadastrada.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '';
+  metas.forEach((m) => {
+    const tr = document.createElement('tr');
+    tr.dataset.id = m.id;
+    const tipoLabel = m.tipo === 'geral' ? 'Meta Geral' : 'Meta Operador';
+    tr.innerHTML =
+      `<td>${escapeHtml(tipoLabel)}</td>` +
+      `<td>${escapeHtml(m.operador || '—')}</td>` +
+      `<td>${escapeHtml(String(m.valor))}</td>` +
+      `<td class="td-actions"><button class="mt-remove" type="button">Remover</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('.mt-remove').forEach(btn => {
+    btn.onclick = () => removeMeta(btn.closest('tr').dataset.id);
+  });
+}
+
+async function addMetaFromForm() {
+  if (!sb) return;
+  const tipo = document.getElementById('mt-tipo').value;
+  const operador = tipo === 'operador' ? (document.getElementById('mt-operador').value || '').trim() : null;
+  const valorRaw = document.getElementById('mt-valor').value.trim();
+  const valor = valorRaw ? parseFloat(valorRaw) : NaN;
+
+  if (tipo === 'operador' && !operador) {
+    showToast('Selecione o operador para a meta.', 'error');
+    document.getElementById('mt-operador').focus();
+    return;
+  }
+  if (!Number.isFinite(valor) || valor <= 0) {
+    showToast('Informe um valor de meta válido.', 'error');
+    document.getElementById('mt-valor').focus();
+    return;
+  }
+
+  const dup = (state.config.metas || []).find(m =>
+    m.tipo === tipo && normForCompare(m.operador) === normForCompare(operador || '')
+  );
+  if (dup) {
+    const ref = tipo === 'geral' ? 'Meta Geral' : `Meta para "${operador}"`;
+    showToast(`${ref} já existe.`, 'error');
+    return;
+  }
+
+  const { data, error } = await sb.from('metas')
+    .insert({ tipo, operador, valor })
+    .select().single();
+  if (error) { showToast('Erro ao adicionar meta: ' + error.message, 'error'); return; }
+
+  state.config.metas.push({
+    id: data.id,
+    tipo: data.tipo,
+    operador: data.operador || '',
+    valor: Number(data.valor),
+  });
+  document.getElementById('mt-valor').value = '';
+  if (tipo === 'operador') document.getElementById('mt-operador').value = '';
+  renderMetasTable();
+  renderDashboard();
+  showToast('Meta adicionada.');
+}
+
+async function removeMeta(id) {
+  if (!sb || !id) return;
+  const m = (state.config.metas || []).find(x => x.id === id);
+  const label = m
+    ? (m.tipo === 'geral' ? 'Meta Geral' : `Meta de ${m.operador}`)
+    : 'esta meta';
+  if (!confirm(`Remover ${label}? Essa ação não pode ser desfeita.`)) return;
+  const { error } = await sb.from('metas').delete().eq('id', id);
+  if (error) { showToast('Erro ao remover: ' + error.message, 'error'); return; }
+  state.config.metas = state.config.metas.filter(x => x.id !== id);
+  renderMetasTable();
+  renderDashboard();
+}
+
+const btnAddMeta = document.getElementById('btn-add-meta');
+if (btnAddMeta) btnAddMeta.addEventListener('click', addMetaFromForm);
+
+const mtTipoSel = document.getElementById('mt-tipo');
+const mtOperadorField = document.getElementById('mt-operador-field');
+if (mtTipoSel && mtOperadorField) {
+  const sync = () => { mtOperadorField.style.display = mtTipoSel.value === 'operador' ? '' : 'none'; };
+  mtTipoSel.addEventListener('change', sync);
+  sync();
+}
 
 // ============================================================
 // REGISTROS — TABELAS, EDIT, REMOVE
@@ -1925,11 +2050,6 @@ function setUserChrome(email) {
 // ============================================================
 // DASHBOARD
 // ============================================================
-function parseMeta(s) {
-  const m = String(s).match(/^(.+?)\s*[·\-]\s*(\d+)\s*\/\s*dia\s*$/i);
-  if (!m) return null;
-  return { nome: m[1].trim(), valor: parseInt(m[2], 10) };
-}
 
 function renderDashboard() {
   const today = todayISO();
@@ -1983,25 +2103,18 @@ function renderMetas(totalUnidades, grHoje) {
     container.innerHTML = '<div class="meta-empty">Nenhuma meta cadastrada. Adicione em Configurações.</div>';
     return;
   }
-  for (const raw of metas) {
-    const m = parseMeta(raw);
-    if (!m) {
-      const div = document.createElement('div');
-      div.className = 'meta-item';
-      div.innerHTML =
-        `<div class="meta-item-head"><span class="meta-item-name">${escapeHtml(raw)}</span>` +
-        `<span class="meta-item-progress">formato inválido — use "Nome · X/dia"</span></div>`;
-      container.appendChild(div);
-      continue;
-    }
+  for (const m of metas) {
     let realizado;
-    if (/^meta\s*geral/i.test(m.nome)) {
+    let label;
+    if (m.tipo === 'geral') {
       realizado = totalUnidades;
+      label = 'Meta Geral';
     } else {
       realizado = grHoje
-        .filter(r => r.operador && r.operador.startsWith(m.nome))
+        .filter(r => r.operador && normForCompare(r.operador) === normForCompare(m.operador))
         .reduce((s, r) => s + (parseInt(r.qtd, 10) || 0)
                             + (r.he && r.he_dados ? (parseInt(r.he_dados.qtd, 10) || 0) : 0), 0);
+      label = m.operador;
     }
     const pct = m.valor > 0 ? (realizado / m.valor) * 100 : 0;
     const fillPct = Math.min(100, pct);
@@ -2012,7 +2125,7 @@ function renderMetas(totalUnidades, grHoje) {
     div.className = 'meta-item';
     div.innerHTML = `
       <div class="meta-item-head">
-        <span class="meta-item-name">${escapeHtml(m.nome)} · ${m.valor}/dia</span>
+        <span class="meta-item-name">${escapeHtml(label)} · ${m.valor}/dia</span>
         <span class="meta-item-progress">${realizado} / ${m.valor} (${pct.toFixed(0)}%)</span>
       </div>
       <div class="meta-bar"><div class="meta-bar-fill ${barClass}" style="width:${fillPct}%"></div></div>

@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=19">
+  <link rel="stylesheet" href="styles.css?v=20">
 
 </head>
 <body>
@@ -545,12 +545,30 @@
               </table>
             </div>
           </div>
-          <div class="card config-card">
+          <div class="card config-card config-card-wide">
             <h3>Metas de Produção</h3>
-            <ul class="config-list" id="list-metas"></ul>
-            <div class="config-add">
-              <input type="text" placeholder="Ex.: Operador · valor" id="input-meta">
-              <button onclick="addItem('list-metas', 'input-meta')">Adicionar</button>
+            <div class="config-form-grid">
+              <div class="field"><label for="mt-tipo">Tipo Meta</label>
+                <select id="mt-tipo">
+                  <option value="geral">Meta Geral</option>
+                  <option value="operador">Meta Operador</option>
+                </select>
+              </div>
+              <div class="field" id="mt-operador-field" style="display:none"><label for="mt-operador">Operador</label>
+                <select id="mt-operador"></select>
+              </div>
+              <div class="field"><label for="mt-valor">Meta (un/dia)</label><input type="number" step="1" min="0" id="mt-valor" placeholder="Ex.: 1000"></div>
+              <div class="field op-btn-field"><button type="button" id="btn-add-meta" class="btn btn-primary">Adicionar meta</button></div>
+            </div>
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr><th>Tipo</th><th>Operador</th><th>Meta/dia</th><th class="th-actions">Ações</th></tr>
+                </thead>
+                <tbody id="tbody-metas">
+                  <tr><td colspan="4" class="empty-state">Nenhuma meta cadastrada.</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -598,7 +616,7 @@
   </div>
   <div class="toast" id="toast">Registro salvo com sucesso!</div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=19"></script>
-  <script src="app.js?v=19" defer></script>
+  <script src="supabase-config.js?v=20"></script>
+  <script src="app.js?v=20" defer></script>
 </body>
 </html>
