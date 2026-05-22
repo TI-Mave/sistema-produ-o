@@ -1218,7 +1218,12 @@ async function addLinhaFromForm() {
   const nome = document.getElementById('ln-nome').value.trim();
   if (!nome) { showToast('Informe o nome da linha.', 'error'); return; }
   const capRaw = document.getElementById('ln-capacidade').value.trim();
-  const capacidade = capRaw ? parseFloat(capRaw) : null;
+  const capacidade = capRaw ? parseFloat(capRaw) : NaN;
+  if (!Number.isFinite(capacidade) || capacidade <= 0) {
+    showToast('Informe a capacidade produtiva da linha.', 'error');
+    document.getElementById('ln-capacidade').focus();
+    return;
+  }
 
   const nomeNorm = normForCompare(nome);
   const dup = (state.config.linhas || []).find(l => normForCompare(l.nome) === nomeNorm);
@@ -1401,15 +1406,6 @@ async function addMetaFromForm() {
   if (!Number.isFinite(valor) || valor <= 0) {
     showToast('Informe um valor de meta válido.', 'error');
     document.getElementById('mt-valor').focus();
-    return;
-  }
-
-  const dup = (state.config.metas || []).find(m =>
-    m.tipo === tipo && normForCompare(m.operador) === normForCompare(operador || '')
-  );
-  if (dup) {
-    const ref = tipo === 'geral' ? 'Meta Geral' : `Meta para "${operador}"`;
-    showToast(`${ref} já existe.`, 'error');
     return;
   }
 
