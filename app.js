@@ -80,7 +80,7 @@ const FROM_DB = {
     hf: row.hf,
     operador: row.operador,
     qtd: row.qtd,
-    tam: row.tam != null ? Number(row.tam).toFixed(2) : '0.00',
+    tam: row.tam != null ? String(row.tam) : '',
     gancho: row.gancho,
     he: !!row.he,
     he_dados: row.he_dados || null,
@@ -114,7 +114,7 @@ const TO_DB = {
     hf: r.hf,
     operador: r.operador,
     qtd: parseInt(r.qtd, 10),
-    tam: parseFloat(r.tam),
+    tam: String(r.tam || '').trim(),
     gancho: r.gancho,
     he: !!r.he,
     he_dados: r.he ? r.he_dados : null,
@@ -711,9 +711,9 @@ function csvRow(kind, r) {
   if (kind === 'grampeadeira') {
     const he = r.he_dados || {};
     return [
-      r.hora, r.op, r.data, r.hi, r.hf, r.operador, r.qtd, fmtNum(r.tam), r.gancho,
+      r.hora, r.op, r.data, r.hi, r.hf, r.operador, r.qtd, r.tam, r.gancho,
       fmtBool(r.he),
-      r.he ? he.hi : '', r.he ? he.hf : '', r.he ? fmtNum(he.tam) : '', r.he ? he.qtd : '', r.he ? he.gancho : '',
+      r.he ? he.hi : '', r.he ? he.hf : '', r.he ? he.tam : '', r.he ? he.qtd : '', r.he ? he.gancho : '',
     ];
   }
   if (kind === 'extensor') {
@@ -1753,7 +1753,7 @@ function buildRegistroFromForm(kind) {
       hf: document.getElementById('g-hf').value,
       operador: document.getElementById('g-operador').value,
       qtd: document.getElementById('g-qtd').value,
-      tam: parseFloat(document.getElementById('g-tam').value).toFixed(2),
+      tam: document.getElementById('g-tam').value.trim(),
       gancho: document.getElementById('g-gancho').value,
       he: heFlag.checked,
     };
@@ -1761,7 +1761,7 @@ function buildRegistroFromForm(kind) {
       r.he_dados = {
         hi: document.getElementById('g-he-hi').value,
         hf: document.getElementById('g-he-hf').value,
-        tam: parseFloat(document.getElementById('g-he-tam').value).toFixed(2),
+        tam: document.getElementById('g-he-tam').value.trim(),
         qtd: document.getElementById('g-he-qtd').value,
         gancho: document.getElementById('g-he-gancho').value,
       };

@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=26">
+  <link rel="stylesheet" href="styles.css?v=27">
 
 </head>
 <body>
@@ -368,7 +368,7 @@
                 <select id="g-operador" required></select>
               </div>
               <div class="field required"><label for="g-qtd">Quantidade</label><input type="number" min="1" id="g-qtd" placeholder="0" required></div>
-              <div class="field required"><label for="g-tam">Tamanho</label><input type="number" step="0.01" min="0.01" id="g-tam" placeholder="0,00" required list="datalist-tamanhos" autocomplete="off"></div>
+              <div class="field required"><label for="g-tam">Tamanho</label><input type="text" id="g-tam" placeholder="Ex.: 8m" required list="datalist-tamanhos" autocomplete="off"></div>
               <div class="field required"><label for="g-gancho">Gancho</label><input type="text" id="g-gancho" placeholder="Identificação" required list="datalist-ganchos" autocomplete="off"></div>
             </div>
             <div class="checkbox-field" style="margin-top: 16px;">
@@ -380,7 +380,7 @@
               <div class="form-grid">
                 <div class="field required"><label for="g-he-hi">Hora Início</label><input type="time" id="g-he-hi"></div>
                 <div class="field required"><label for="g-he-hf">Hora Fim</label><input type="time" id="g-he-hf"></div>
-                <div class="field required"><label for="g-he-tam">Tamanho</label><input type="number" step="0.01" min="0.01" id="g-he-tam" placeholder="0,00" list="datalist-tamanhos" autocomplete="off"></div>
+                <div class="field required"><label for="g-he-tam">Tamanho</label><input type="text" id="g-he-tam" placeholder="Ex.: 8m" list="datalist-tamanhos" autocomplete="off"></div>
                 <div class="field required"><label for="g-he-qtd">Quantidade</label><input type="number" min="1" id="g-he-qtd" placeholder="0"></div>
                 <div class="field required"><label for="g-he-gancho">Gancho</label><input type="text" id="g-he-gancho" placeholder="Identificação" list="datalist-ganchos" autocomplete="off"></div>
               </div>
@@ -639,7 +639,7 @@
   <datalist id="datalist-tamanhos"></datalist>
   <datalist id="datalist-ganchos"></datalist>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=26"></script>
-  <script src="app.js?v=26" defer></script>
+  <script src="supabase-config.js?v=27"></script>
+  <script src="app.js?v=27" defer></script>
 </body>
 </html>
