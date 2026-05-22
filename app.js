@@ -21,10 +21,8 @@ const ALLOWED_EMAIL_DOMAIN = 'mavebr.com';
 const TIPO_FROM_KEY = {
   diametros: 'diametro',
   caixas: 'caixa',
-  linhas: 'linha',
-  turnos: 'turno',
-  operadores: 'operador',
-  metas: 'meta',
+  tamanhos: 'tamanho',
+  ganchos: 'gancho',
 };
 
 const TABLE_FOR = {
@@ -181,12 +179,16 @@ async function dbLoadConfig() {
   state.configIds = {
     diametros: byTipo('diametro').map(i => i.id),
     caixas:    byTipo('caixa').map(i => i.id),
+    tamanhos:  byTipo('tamanho').map(i => i.id),
+    ganchos:   byTipo('gancho').map(i => i.id),
   };
 
   return {
     cores:     (coresRes.data || []).map(c => ({ id: c.id, nome: c.nome, hex: c.hex })),
     diametros: byTipo('diametro').map(i => i.valor),
     caixas:    byTipo('caixa').map(i => i.valor),
+    tamanhos:  byTipo('tamanho').map(i => i.valor),
+    ganchos:   byTipo('gancho').map(i => i.valor),
     linhas:    linhasList,
     turnos:    turnosList,
     operadores: operadoresList,
@@ -233,8 +235,8 @@ function toggleTheme() { setTheme(getTheme() === 'dark' ? 'light' : 'dark'); }
 // ESTADO
 // ============================================================
 const state = {
-  config: { cores: [], diametros: [], caixas: [], linhas: [], turnos: [], operadores: [], metas: [] },
-  configIds: { diametros: [], caixas: [] },
+  config: { cores: [], diametros: [], caixas: [], tamanhos: [], ganchos: [], linhas: [], turnos: [], operadores: [], metas: [] },
+  configIds: { diametros: [], caixas: [], tamanhos: [], ganchos: [] },
   email: null,
   profile: null,
   recovering: false,
@@ -862,6 +864,19 @@ function renderDropdowns() {
   renderOperatorFilter();
   populateOpTurnoSelect();
   populateMetaOperadorSelect();
+  populateAutocompleteDatalist('datalist-tamanhos', cfg.tamanhos || []);
+  populateAutocompleteDatalist('datalist-ganchos', cfg.ganchos || []);
+}
+
+function populateAutocompleteDatalist(id, values) {
+  const dl = document.getElementById(id);
+  if (!dl) return;
+  dl.innerHTML = '';
+  for (const v of values) {
+    const o = document.createElement('option');
+    o.value = v;
+    dl.appendChild(o);
+  }
 }
 
 // ============================================================
@@ -871,6 +886,8 @@ const CONFIG_LISTS = [
   { listId: 'list-cores',      key: 'cores',      isCor: true,  inputId: 'input-cor' },
   { listId: 'list-diametros',  key: 'diametros',  isCor: false, inputId: 'input-diametro' },
   { listId: 'list-caixas',     key: 'caixas',     isCor: false, inputId: 'input-caixa' },
+  { listId: 'list-tamanhos',   key: 'tamanhos',   isCor: false, inputId: 'input-tamanho' },
+  { listId: 'list-ganchos',    key: 'ganchos',    isCor: false, inputId: 'input-gancho' },
 ];
 const metaForListId = (id) => CONFIG_LISTS.find(m => m.listId === id);
 
@@ -1063,6 +1080,13 @@ function formatTurnoLabel(t) {
   if (!t) return '';
   if (t.hi && t.hf) return `${t.nome} · ${t.hi} às ${t.hf}`;
   return t.nome;
+}
+
+function timeToMin(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
 }
 
 function populateOpTurnoSelect() {
@@ -1767,6 +1791,34 @@ async function submitRegistro(kind, form) {
       return;
     }
   }
+  if (kind === 'grampeadeira' && !heFlag.checked) {
+    const opNome = document.getElementById('g-operador').value;
+    const op = (state.config.operadores || []).find(o => o.nome === opNome);
+    const turno = op && op.turno
+      ? (state.config.turnos || []).find(t => formatTurnoLabel(t) === op.turno)
+      : null;
+    if (turno && turno.hi && turno.hf) {
+      const hi = timeToMin(document.getElementById('g-hi').value);
+      const hf = timeToMin(document.getElementById('g-hf').value);
+      const tHi = timeToMin(turno.hi);
+      const tHf = timeToMin(turno.hf);
+      if (hi != null && hf != null && tHi != null && tHf != null) {
+        const crossMidnight = tHi > tHf;
+        const inRange = crossMidnight
+          ? (m) => m >= tHi || m <= tHf
+          : (m) => m >= tHi && m <= tHf;
+        if (!inRange(hi) || !inRange(hf)) {
+          showToast(
+            `Horário (${turno.hi}–${turno.hf}) é o turno de ${opNome}. ` +
+            `Marque "Houve hora extra" para registrar fora do turno.`,
+            'error'
+          );
+          document.getElementById('g-hi').focus();
+          return;
+        }
+      }
+    }
+  }
 
   const data = buildRegistroFromForm(kind);
   const editingId = state.editing[kind];
@@ -1801,6 +1853,8 @@ async function submitRegistro(kind, form) {
     state.registros[kind].push(FROM_DB[kind](created));
     const stickyOp = kind === 'grampeadeira' ? document.getElementById('g-op').value : '';
     const stickyGrampData = kind === 'grampeadeira' ? document.getElementById('g-data').value : '';
+    const stickyOperador = kind === 'grampeadeira' ? document.getElementById('g-operador').value : '';
+    const stickyHf = kind === 'grampeadeira' ? document.getElementById('g-hf').value : '';
     const stickyLinha = kind === 'trancadeira' ? document.getElementById('t-linha').value : '';
     const stickyTrancData = kind === 'trancadeira' ? document.getElementById('t-data').value : '';
     form.reset();
@@ -1811,6 +1865,30 @@ async function submitRegistro(kind, form) {
       heFlag.checked = false;
       document.getElementById('g-op').value = stickyOp;
       if (stickyGrampData) document.getElementById('g-data').value = stickyGrampData;
+      if (stickyOperador) document.getElementById('g-operador').value = stickyOperador;
+      // Encadeia: prox Hora Inicio = Hora Fim anterior, se ainda dentro do turno
+      if (stickyHf) {
+        const op = (state.config.operadores || []).find(o => o.nome === stickyOperador);
+        const turno = op && op.turno
+          ? (state.config.turnos || []).find(t => formatTurnoLabel(t) === op.turno)
+          : null;
+        let canChain = true;
+        if (turno && turno.hi && turno.hf) {
+          const newHi = timeToMin(stickyHf);
+          const tHi = timeToMin(turno.hi);
+          const tHf = timeToMin(turno.hf);
+          if (newHi != null && tHi != null && tHf != null) {
+            const crossMidnight = tHi > tHf;
+            canChain = crossMidnight
+              ? (newHi >= tHi || newHi < tHf)
+              : (newHi >= tHi && newHi < tHf);
+            if (!canChain) {
+              showToast(`Turno de ${stickyOperador} encerrado às ${turno.hf}.`);
+            }
+          }
+        }
+        if (canChain) document.getElementById('g-hi').value = stickyHf;
+      }
     }
     if (kind === 'trancadeira') {
       if (stickyLinha) document.getElementById('t-linha').value = stickyLinha;
