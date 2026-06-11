@@ -1113,7 +1113,7 @@ function renderOperadoresTable() {
   if (!tbody) return;
   const ops = state.config.operadores || [];
   if (ops.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum operador cadastrado.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Nenhum operador cadastrado.</td></tr>';
     return;
   }
   tbody.innerHTML = '';
@@ -1124,7 +1124,6 @@ function renderOperadoresTable() {
       `<td>${escapeHtml(op.nome)}</td>` +
       `<td>${escapeHtml(op.matricula || '—')}</td>` +
       `<td>${escapeHtml(op.funcao || '—')}</td>` +
-      `<td>${escapeHtml(op.turno || '—')}</td>` +
       `<td>${op.capacidade != null ? escapeHtml(String(op.capacidade)) : '—'}</td>` +
       `<td class="td-actions"><button class="op-remove" type="button">Remover</button></td>`;
     tbody.appendChild(tr);
@@ -1143,7 +1142,7 @@ async function addOperadorFromForm() {
   }
   const matricula = document.getElementById('op-matricula').value.trim() || null;
   const funcao = document.getElementById('op-funcao').value.trim() || null;
-  const turno = document.getElementById('op-turno').value || null;
+  const turno = null;
   const capRaw = document.getElementById('op-capacidade').value.trim();
   const capacidade = capRaw ? parseFloat(capRaw) : null;
 
@@ -1407,12 +1406,102 @@ function renderMetasTable() {
       `<td>${escapeHtml(tipoLabel)}</td>` +
       `<td>${escapeHtml(m.operador || '—')}</td>` +
       `<td>${escapeHtml(String(m.valor))}</td>` +
-      `<td class="td-actions"><button class="mt-remove" type="button">Remover</button></td>`;
+      `<td class="td-actions">` +
+        `<button class="mt-edit" type="button">Editar</button> ` +
+        `<button class="mt-remove" type="button">Remover</button>` +
+      `</td>`;
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.mt-remove').forEach(btn => {
     btn.onclick = () => removeMeta(btn.closest('tr').dataset.id);
   });
+  tbody.querySelectorAll('.mt-edit').forEach(btn => {
+    btn.onclick = () => startMetaEdit(btn.closest('tr').dataset.id);
+  });
+}
+
+function startMetaEdit(id) {
+  const m = (state.config.metas || []).find(x => x.id === id);
+  if (!m) return;
+  const tbody = document.getElementById('tbody-metas');
+  const tr = tbody.querySelector(`tr[data-id="${id}"]`);
+  if (!tr) return;
+
+  const operadoresOptions = (state.config.operadores || [])
+    .map(o => `<option value="${escapeHtml(o.nome)}" ${o.nome === m.operador ? 'selected' : ''}>${escapeHtml(o.nome)}</option>`)
+    .join('');
+
+  tr.innerHTML = `
+    <td>
+      <select class="mt-edit-tipo">
+        <option value="geral" ${m.tipo === 'geral' ? 'selected' : ''}>Meta Geral</option>
+        <option value="operador" ${m.tipo === 'operador' ? 'selected' : ''}>Meta Operador</option>
+      </select>
+    </td>
+    <td>
+      <select class="mt-edit-operador" ${m.tipo === 'geral' ? 'disabled' : ''}>
+        <option value="">Selecione…</option>
+        ${operadoresOptions}
+      </select>
+    </td>
+    <td><input type="number" step="1" min="0" class="mt-edit-valor" value="${escapeHtml(String(m.valor))}"></td>
+    <td class="td-actions">
+      <button class="mt-save" type="button">Salvar</button>
+      <button class="mt-cancel" type="button">Cancelar</button>
+    </td>
+  `;
+
+  const tipoSel = tr.querySelector('.mt-edit-tipo');
+  const opSel = tr.querySelector('.mt-edit-operador');
+  tipoSel.addEventListener('change', () => {
+    const isOp = tipoSel.value === 'operador';
+    opSel.disabled = !isOp;
+    if (!isOp) opSel.value = '';
+  });
+  tr.querySelector('.mt-save').onclick = () => saveMetaEdit(id);
+  tr.querySelector('.mt-cancel').onclick = () => renderMetasTable();
+  tr.querySelector('.mt-edit-valor').focus();
+}
+
+async function saveMetaEdit(id) {
+  if (!sb) return;
+  const tbody = document.getElementById('tbody-metas');
+  const tr = tbody.querySelector(`tr[data-id="${id}"]`);
+  if (!tr) return;
+  const tipo = tr.querySelector('.mt-edit-tipo').value;
+  const operador = tipo === 'operador'
+    ? (tr.querySelector('.mt-edit-operador').value || '').trim()
+    : null;
+  const valorRaw = tr.querySelector('.mt-edit-valor').value.trim();
+  const valor = valorRaw ? parseFloat(valorRaw) : NaN;
+
+  if (tipo === 'operador' && !operador) {
+    showToast('Selecione o operador para a meta.', 'error');
+    return;
+  }
+  if (!Number.isFinite(valor) || valor <= 0) {
+    showToast('Informe um valor de meta válido.', 'error');
+    return;
+  }
+
+  const { data, error } = await sb.from('metas')
+    .update({ tipo, operador, valor })
+    .eq('id', id)
+    .select().single();
+  if (error) { showToast('Erro ao atualizar meta: ' + error.message, 'error'); return; }
+
+  const idx = state.config.metas.findIndex(x => x.id === id);
+  if (idx >= 0) {
+    state.config.metas[idx] = {
+      id: data.id,
+      tipo: data.tipo,
+      operador: data.operador || '',
+      valor: Number(data.valor),
+    };
+  }
+  renderMetasTable();
+  renderDashboard();
+  showToast('Meta atualizada.');
 }
 
 async function addMetaFromForm() {
