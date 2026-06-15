@@ -2031,6 +2031,11 @@ async function setRoleById(userId, role) {
   if (error) throw error;
 }
 
+async function deleteUserById(userId) {
+  const { error } = await sb.rpc('delete_user_account', { target_user_id: userId });
+  if (error) throw error;
+}
+
 function fmtDate(iso) {
   if (!iso) return '—';
   try {
@@ -2098,12 +2103,13 @@ async function renderUsersPanel() {
           : (u.status === 'rejected'
               ? `<button type="button" class="approve">Aprovar</button>`
               : `<button type="button" class="reject" ${isMe ? 'disabled title="Você não pode rejeitar a si mesmo"' : ''}>Rejeitar</button>`);
+        const deleteAction = `<button type="button" class="user-delete" ${isMe ? 'disabled title="Você não pode remover a si mesmo"' : ''}>Remover</button>`;
         tr.innerHTML = `
           <td>${escapeHtml(u.email)}${isMe ? ' <span class="badge badge-default" style="margin-left:6px">você</span>' : ''}</td>
           <td>${escapeHtml(ROLE_LABEL[u.role] || u.role)}</td>
           <td>${escapeHtml(STATUS_LABEL[u.status] || u.status)}</td>
           <td>${escapeHtml(fmtDate(u.created_at))}</td>
-          <td class="row-actions">${statusActions}${roleSwap}</td>
+          <td class="row-actions">${statusActions}${roleSwap}${deleteAction}</td>
         `;
         tbodyUsers.appendChild(tr);
       }
@@ -2137,6 +2143,15 @@ function attachUsersPanelHandlers() {
         if (!confirm('Remover privilégios de administrador deste usuário?')) { btn.disabled = false; return; }
         await setRoleById(userId, 'user');
         showToast('Usuário rebaixado a comum.');
+      } else if (btn.classList.contains('user-delete')) {
+        const emailTd = tr.querySelector('td');
+        const emailText = emailTd ? emailTd.textContent.trim() : 'este usuário';
+        if (!confirm(`Remover ${emailText} definitivamente? A conta e o perfil serão apagados. Essa ação não pode ser desfeita.`)) {
+          btn.disabled = false;
+          return;
+        }
+        await deleteUserById(userId);
+        showToast('Usuário removido.');
       }
       await renderUsersPanel();
     } catch (err) {
