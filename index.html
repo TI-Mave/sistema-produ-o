@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=32">
+  <link rel="stylesheet" href="styles.css?v=33">
 
 </head>
 <body>
@@ -367,9 +367,14 @@
               <div class="field required"><label for="g-operador">Operador</label>
                 <select id="g-operador" required></select>
               </div>
-              <div class="field required"><label for="g-qtd">Quantidade</label><input type="number" min="1" id="g-qtd" placeholder="0" required></div>
-              <div class="field required"><label for="g-tam">Tamanho</label><input type="text" id="g-tam" placeholder="Ex.: 8m" required list="datalist-tamanhos" autocomplete="off"></div>
               <div class="field required"><label for="g-gancho">Gancho</label><input type="text" id="g-gancho" placeholder="Identificação" required list="datalist-ganchos" autocomplete="off"></div>
+            </div>
+            <div class="items-block">
+              <div class="items-block-header">
+                <h3>Itens produzidos</h3>
+                <button type="button" id="btn-add-item" class="btn btn-secondary btn-sm">+ Adicionar item</button>
+              </div>
+              <div id="g-items"></div>
             </div>
             <div class="checkbox-field" style="margin-top: 16px;">
               <input type="checkbox" id="g-he-flag">
@@ -665,7 +670,7 @@
     <option value="Outro"></option>
   </datalist>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=32"></script>
-  <script src="app.js?v=32" defer></script>
+  <script src="supabase-config.js?v=33"></script>
+  <script src="app.js?v=33" defer></script>
 </body>
 </html>

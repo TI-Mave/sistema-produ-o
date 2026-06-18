@@ -1684,6 +1684,11 @@ function setEditingUI(kind, on) {
   if (card) card.classList.toggle('editing', on);
   const submit = form.querySelector('button[type="submit"]');
   if (submit) submit.textContent = on ? 'Atualizar registro' : 'Salvar registro';
+  if (kind === 'grampeadeira' && !on) {
+    const btnAdd = document.getElementById('btn-add-item');
+    if (btnAdd) btnAdd.style.display = '';
+    resetItemRows();
+  }
 }
 
 function startEditRegistro(kind, id) {
@@ -1743,9 +1748,11 @@ function fillFormFromRegistro(kind, r) {
     document.getElementById('g-hf').value = r.hf || '';
     fillSelect('g-operador', (state.config.operadores || []).map(o => o.nome), r.operador);
     document.getElementById('g-operador').value = r.operador || '';
-    document.getElementById('g-qtd').value = r.qtd || '';
-    document.getElementById('g-tam').value = r.tam || '';
     document.getElementById('g-gancho').value = r.gancho || '';
+    resetItemRows([{ tam: r.tam || '', qtd: r.qtd || '' }]);
+    // Editando: bloqueia adicao de mais itens (UPDATE eh sempre 1 registro)
+    const btnAdd = document.getElementById('btn-add-item');
+    if (btnAdd) btnAdd.style.display = 'none';
     heFlag.checked = !!r.he;
     heBlock.classList.toggle('show', !!r.he);
     if (r.he && r.he_dados) {
@@ -1814,34 +1821,38 @@ function buildRegistroFromForm(kind) {
     };
   }
   if (kind === 'grampeadeira') {
-    const r = {
+    const base = {
       op: document.getElementById('g-op').value,
       data: document.getElementById('g-data').value,
       hi: document.getElementById('g-hi').value,
       hf: document.getElementById('g-hf').value,
       operador: document.getElementById('g-operador').value,
-      qtd: document.getElementById('g-qtd').value,
-      tam: document.getElementById('g-tam').value.trim(),
       gancho: document.getElementById('g-gancho').value,
-      he: heFlag.checked,
     };
-    if (heFlag.checked) {
-      r.he_dados = {
-        hi: document.getElementById('g-he-hi').value,
-        hf: document.getElementById('g-he-hf').value,
-        tam: document.getElementById('g-he-tam').value.trim(),
-        qtd: document.getElementById('g-he-qtd').value,
-        gancho: document.getElementById('g-he-gancho').value,
-      };
-    }
-    r.desconto = !!(descFlag && descFlag.checked);
-    if (r.desconto) {
-      r.desconto_dados = {
-        motivo: document.getElementById('g-desc-motivo').value.trim(),
-        duracao: document.getElementById('g-desc-duracao').value,
-      };
-    }
-    return r;
+    const he = heFlag.checked;
+    const he_dados = he ? {
+      hi: document.getElementById('g-he-hi').value,
+      hf: document.getElementById('g-he-hf').value,
+      tam: document.getElementById('g-he-tam').value.trim(),
+      qtd: document.getElementById('g-he-qtd').value,
+      gancho: document.getElementById('g-he-gancho').value,
+    } : null;
+    const desconto = !!(descFlag && descFlag.checked);
+    const desconto_dados = desconto ? {
+      motivo: document.getElementById('g-desc-motivo').value.trim(),
+      duracao: document.getElementById('g-desc-duracao').value,
+    } : null;
+    const items = collectItemRows();
+    // HE/Desconto so vao no PRIMEIRO registro do lote (evitam duplicacao no dashboard)
+    return items.map((it, idx) => ({
+      ...base,
+      tam: it.tam,
+      qtd: it.qtd,
+      he: idx === 0 ? he : false,
+      he_dados: idx === 0 ? he_dados : null,
+      desconto: idx === 0 ? desconto : false,
+      desconto_dados: idx === 0 ? desconto_dados : null,
+    }));
   }
   if (kind === 'extensor') {
     return {
@@ -1873,6 +1884,20 @@ async function submitRegistro(kind, form) {
       showToast('Você marcou desconto de horas. Preencha motivo e duração.', 'error');
       document.getElementById(empty).focus();
       return;
+    }
+  }
+  if (kind === 'grampeadeira' && !state.editing[kind]) {
+    const items = collectItemRows();
+    if (items.length === 0) {
+      showToast('Adicione ao menos um item.', 'error');
+      return;
+    }
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (!it.tam || !it.qtd) {
+        showToast(`Preencha tamanho e quantidade do item ${i + 1}.`, 'error');
+        return;
+      }
     }
   }
   if (kind === 'grampeadeira' && !heFlag.checked) {
@@ -1908,9 +1933,13 @@ async function submitRegistro(kind, form) {
   const editingId = state.editing[kind];
   const userId = await getCurrentUserId();
 
+  // Grampeadeira nao-editando: data eh array (varios itens). Senao, e objeto unico.
+  const isGrampBatch = kind === 'grampeadeira' && Array.isArray(data);
+  const singleData = isGrampBatch ? data[0] : data;
+
   if (editingId) {
     const original = state.registros[kind].find(r => r.id === editingId);
-    const dbRow = { ...TO_DB[kind](data, userId), hora: original ? original.hora : nowTime() };
+    const dbRow = { ...TO_DB[kind](singleData, userId), hora: original ? original.hora : nowTime() };
     const { data: updated, error } = await sb.from(TABLE_FOR[kind])
       .update(dbRow).eq('id', editingId).select().single();
     if (error) { showToast('Erro ao atualizar: ' + error.message, 'error'); return; }
@@ -1928,13 +1957,71 @@ async function submitRegistro(kind, form) {
         descFlag.checked = false;
         descBlock.classList.remove('show');
       }
+      resetItemRows();
     }
     renderDropdowns();
     renderTable(kind);
     renderDashboard();
     showToast('Registro atualizado.');
+  } else if (isGrampBatch) {
+    // Insert em lote
+    if (data.length === 0) {
+      showToast('Adicione ao menos um item.', 'error');
+      return;
+    }
+    const hora = nowTime();
+    const rows = data.map(r => ({ ...TO_DB[kind](r, userId), hora }));
+    const { data: created, error } = await sb.from(TABLE_FOR[kind])
+      .insert(rows).select();
+    if (error) { showToast('Erro ao salvar: ' + error.message, 'error'); return; }
+    (created || []).forEach(c => state.registros[kind].push(FROM_DB[kind](c)));
+    const stickyOp = document.getElementById('g-op').value;
+    const stickyGrampData = document.getElementById('g-data').value;
+    const stickyOperador = document.getElementById('g-operador').value;
+    const stickyGancho = document.getElementById('g-gancho').value;
+    const stickyHf = document.getElementById('g-hf').value;
+    form.reset();
+    const dateInput = form.querySelector('input[type="date"]');
+    if (dateInput) dateInput.value = todayISO();
+    heBlock.classList.remove('show');
+    heFlag.checked = false;
+    if (descFlag && descBlock) {
+      descFlag.checked = false;
+      descBlock.classList.remove('show');
+    }
+    resetItemRows();
+    document.getElementById('g-op').value = stickyOp;
+    if (stickyGrampData) document.getElementById('g-data').value = stickyGrampData;
+    if (stickyOperador) document.getElementById('g-operador').value = stickyOperador;
+    if (stickyGancho) document.getElementById('g-gancho').value = stickyGancho;
+    // Encadeia HI = HF anterior se dentro do turno
+    if (stickyHf) {
+      const op = (state.config.operadores || []).find(o => o.nome === stickyOperador);
+      const turno = op && op.turno
+        ? (state.config.turnos || []).find(t => formatTurnoLabel(t) === op.turno)
+        : null;
+      let canChain = true;
+      if (turno && turno.hi && turno.hf) {
+        const newHi = timeToMin(stickyHf);
+        const tHi = timeToMin(turno.hi);
+        const tHf = timeToMin(turno.hf);
+        if (newHi != null && tHi != null && tHf != null) {
+          const crossMidnight = tHi > tHf;
+          canChain = crossMidnight
+            ? (newHi >= tHi || newHi < tHf)
+            : (newHi >= tHi && newHi < tHf);
+          if (!canChain) {
+            showToast(`Turno de ${stickyOperador} encerrado às ${turno.hf}.`);
+          }
+        }
+      }
+      if (canChain) document.getElementById('g-hi').value = stickyHf;
+    }
+    renderTable(kind);
+    renderDashboard();
+    showToast(data.length === 1 ? 'Registro salvo com sucesso!' : `${data.length} registros salvos.`);
   } else {
-    const dbRow = { ...TO_DB[kind](data, userId), hora: nowTime() };
+    const dbRow = { ...TO_DB[kind](singleData, userId), hora: nowTime() };
     const { data: created, error } = await sb.from(TABLE_FOR[kind])
       .insert(dbRow).select().single();
     if (error) { showToast('Erro ao salvar: ' + error.message, 'error'); return; }
@@ -1997,6 +2084,76 @@ const heBlock = document.getElementById('g-he-block');
 heFlag.addEventListener('change', () => {
   heBlock.classList.toggle('show', heFlag.checked);
 });
+
+// ============================================================
+// GRAMPEADEIRA — Lista dinamica de itens (Tamanho + Quantidade)
+// ============================================================
+function buildItemRow(tam = '', qtd = '') {
+  const row = document.createElement('div');
+  row.className = 'item-row';
+  row.innerHTML = `
+    <div class="field required">
+      <label>Tamanho</label>
+      <input type="text" class="gi-tam" placeholder="Ex.: 8m" list="datalist-tamanhos" autocomplete="off" required value="${escapeHtml(String(tam || ''))}">
+    </div>
+    <div class="field required">
+      <label>Quantidade</label>
+      <input type="number" class="gi-qtd" min="1" placeholder="0" required value="${escapeHtml(String(qtd || ''))}">
+    </div>
+    <button type="button" class="item-remove">Remover</button>
+  `;
+  row.querySelector('.item-remove').addEventListener('click', () => removeItemRow(row));
+  return row;
+}
+
+function addItemRow(tam = '', qtd = '') {
+  const container = document.getElementById('g-items');
+  if (!container) return;
+  container.appendChild(buildItemRow(tam, qtd));
+  updateItemRemoveButtons();
+}
+
+function removeItemRow(row) {
+  const container = document.getElementById('g-items');
+  if (!container) return;
+  if (container.querySelectorAll('.item-row').length <= 1) return;
+  row.remove();
+  updateItemRemoveButtons();
+}
+
+function updateItemRemoveButtons() {
+  const container = document.getElementById('g-items');
+  if (!container) return;
+  const rows = container.querySelectorAll('.item-row');
+  const onlyOne = rows.length === 1;
+  rows.forEach(r => {
+    const btn = r.querySelector('.item-remove');
+    if (btn) btn.disabled = onlyOne;
+  });
+}
+
+function resetItemRows(items = [{}]) {
+  const container = document.getElementById('g-items');
+  if (!container) return;
+  container.innerHTML = '';
+  const list = items && items.length ? items : [{}];
+  list.forEach(it => container.appendChild(buildItemRow(it.tam || '', it.qtd || '')));
+  updateItemRemoveButtons();
+}
+
+function collectItemRows() {
+  const container = document.getElementById('g-items');
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('.item-row')).map(r => ({
+    tam: r.querySelector('.gi-tam').value.trim(),
+    qtd: r.querySelector('.gi-qtd').value.trim(),
+  }));
+}
+
+// Inicializa primeira linha + botao Adicionar
+resetItemRows();
+const btnAddItem = document.getElementById('btn-add-item');
+if (btnAddItem) btnAddItem.addEventListener('click', () => addItemRow());
 
 const descFlag = document.getElementById('g-desc-flag');
 const descBlock = document.getElementById('g-desc-block');

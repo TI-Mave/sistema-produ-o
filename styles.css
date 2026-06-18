@@ -588,6 +588,50 @@ tbody tr:hover { background: var(--surface-2); }
   gap: 20px;
 }
 .config-card { display: block; }
+.items-block {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.items-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.items-block-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+.items-block .btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.item-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+.item-row:last-child { margin-bottom: 0; }
+.item-row .field { margin: 0; }
+.item-row .item-remove {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--danger);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+.item-row .item-remove:hover { background: var(--danger-bg); }
+.item-row .item-remove:disabled { opacity: 0.4; cursor: not-allowed; }
 .config-card-wide { grid-column: 1 / -1; }
 .config-trio {
   display: grid;
