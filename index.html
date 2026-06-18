@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=33">
+  <link rel="stylesheet" href="styles.css?v=35">
 
 </head>
 <body>
@@ -320,9 +320,13 @@
               <div class="field required"><label for="t-diametro">Diâmetro (mm)</label>
                 <select id="t-diametro" required></select>
               </div>
-              <div class="field required"><label for="t-peso">Peso (kg)</label>
-                <input type="number" step="0.01" min="0.01" id="t-peso" placeholder="0,00" required>
+            </div>
+            <div class="items-block">
+              <div class="items-block-header">
+                <h3>Pesos produzidos (kg)</h3>
+                <button type="button" id="btn-add-tranc-item" class="btn btn-secondary btn-sm">+ Adicionar peso</button>
               </div>
+              <div id="t-items"></div>
             </div>
             <div class="btn-row">
               <button type="reset" class="btn btn-secondary">Limpar</button>
@@ -442,9 +446,6 @@
           <form id="form-extensor">
             <div class="form-grid">
               <div class="field required"><label for="e-data">Data</label><input type="date" id="e-data" required></div>
-              <div class="field required"><label for="e-tipo-caixa">Tipo de Caixa</label>
-                <select id="e-tipo-caixa" required></select>
-              </div>
               <div class="field required"><label for="e-cor">Cor</label>
                 <select id="e-cor" required></select>
               </div>
@@ -467,10 +468,10 @@
           <div class="table-wrapper">
             <table>
               <thead>
-                <tr><th>Hora reg.</th><th>Data</th><th>Tipo Caixa</th><th>Cor</th><th>Diâmetro</th><th>Quantidade</th><th class="th-actions">Ações</th></tr>
+                <tr><th>Hora reg.</th><th>Data</th><th>Cor</th><th>Diâmetro</th><th>Quantidade</th><th class="th-actions">Ações</th></tr>
               </thead>
               <tbody id="tbody-extensor">
-                <tr><td colspan="7" class="empty-state">Nenhum registro hoje. Use o formulário acima.</td></tr>
+                <tr><td colspan="6" class="empty-state">Nenhum registro hoje. Use o formulário acima.</td></tr>
               </tbody>
             </table>
           </div>
@@ -670,7 +671,7 @@
     <option value="Outro"></option>
   </datalist>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=33"></script>
-  <script src="app.js?v=33" defer></script>
+  <script src="supabase-config.js?v=35"></script>
+  <script src="app.js?v=35" defer></script>
 </body>
 </html>

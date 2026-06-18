@@ -617,6 +617,9 @@ tbody tr:hover { background: var(--surface-2); }
   align-items: end;
   margin-bottom: 10px;
 }
+.item-row.item-row-single {
+  grid-template-columns: 1fr auto;
+}
 .item-row:last-child { margin-bottom: 0; }
 .item-row .field { margin: 0; }
 .item-row .item-remove {

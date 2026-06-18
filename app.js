@@ -91,7 +91,6 @@ const FROM_DB = {
     id: row.id,
     hora: row.hora,
     data: row.data,
-    tipoCaixa: row.tipo_caixa,
     cor: row.cor,
     diametro: row.diametro,
     qtd: row.qtd,
@@ -126,7 +125,6 @@ const TO_DB = {
   extensor: (r, userId) => ({
     user_id: userId || null,
     data: r.data,
-    tipo_caixa: r.tipoCaixa,
     cor: r.cor,
     diametro: r.diametro,
     qtd: parseInt(r.qtd, 10),
@@ -705,7 +703,7 @@ const CSV_HEADERS = {
   trancadeira: ['Hora', 'Data', 'Tipo Caixa', 'Linha', 'Cor', 'Diâmetro (mm)', 'Peso (kg)'],
   grampeadeira: ['Hora reg.', 'Nº O.P.', 'Data', 'Início', 'Fim', 'Operador', 'Qtd', 'Tamanho', 'Gancho',
                  'HE', 'HE Início', 'HE Fim', 'HE Tamanho', 'HE Qtd', 'HE Gancho'],
-  extensor: ['Hora reg.', 'Data', 'Tipo Caixa', 'Cor', 'Diâmetro (mm)', 'Quantidade'],
+  extensor: ['Hora reg.', 'Data', 'Cor', 'Diâmetro (mm)', 'Quantidade'],
 };
 
 function csvRow(kind, r) {
@@ -721,7 +719,7 @@ function csvRow(kind, r) {
     ];
   }
   if (kind === 'extensor') {
-    return [r.hora, r.data, r.tipoCaixa, r.cor, fmtNum(r.diametro), r.qtd];
+    return [r.hora, r.data, r.cor, fmtNum(r.diametro), r.qtd];
   }
   return [];
 }
@@ -862,7 +860,6 @@ function renderDropdowns() {
   fillSelect('t-cor', corNomes);
   fillSelect('t-diametro', cfg.diametros);
   fillSelect('g-operador', (cfg.operadores || []).map(o => o.nome));
-  fillSelect('e-tipo-caixa', cfg.caixas);
   fillSelect('e-cor', corNomes);
   fillSelect('e-diametro', cfg.diametros);
   renderOperatorFilter();
@@ -1571,11 +1568,10 @@ const TABLE_META = {
     countId: 'count-extensor',
     formId: 'form-extensor',
     tabName: 'extensor',
-    colspan: 7,
+    colspan: 6,
     rowCells: (r) => `
       <td>${escapeHtml(r.hora)}</td>
       <td>${escapeHtml(r.data)}</td>
-      <td>${escapeHtml(r.tipoCaixa)}</td>
       <td>${escapeHtml(r.cor)}</td>
       <td>${escapeHtml(r.diametro)} mm</td>
       <td>${escapeHtml(r.qtd)}</td>`,
@@ -1689,6 +1685,11 @@ function setEditingUI(kind, on) {
     if (btnAdd) btnAdd.style.display = '';
     resetItemRows();
   }
+  if (kind === 'trancadeira' && !on) {
+    const btnAdd = document.getElementById('btn-add-tranc-item');
+    if (btnAdd) btnAdd.style.display = '';
+    resetTrancItemRows();
+  }
 }
 
 function startEditRegistro(kind, id) {
@@ -1740,7 +1741,9 @@ function fillFormFromRegistro(kind, r) {
     document.getElementById('t-linha').value = r.linha || '';
     document.getElementById('t-cor').value = r.cor || '';
     document.getElementById('t-diametro').value = r.diametro || '';
-    document.getElementById('t-peso').value = r.peso || '';
+    resetTrancItemRows([{ peso: r.peso || '' }]);
+    const btnAddTr = document.getElementById('btn-add-tranc-item');
+    if (btnAddTr) btnAddTr.style.display = 'none';
   } else if (kind === 'grampeadeira') {
     document.getElementById('g-op').value = r.op || '';
     document.getElementById('g-data').value = r.data || todayISO();
@@ -1779,10 +1782,8 @@ function fillFormFromRegistro(kind, r) {
     }
   } else if (kind === 'extensor') {
     document.getElementById('e-data').value = r.data || todayISO();
-    fillSelect('e-tipo-caixa', state.config.caixas, r.tipoCaixa);
     fillSelect('e-cor', state.config.cores.map(c => c.nome), r.cor);
     fillSelect('e-diametro', state.config.diametros, r.diametro);
-    document.getElementById('e-tipo-caixa').value = r.tipoCaixa || '';
     document.getElementById('e-cor').value = r.cor || '';
     document.getElementById('e-diametro').value = r.diametro || '';
     document.getElementById('e-qtd').value = r.qtd || '';
@@ -1811,14 +1812,18 @@ function attachTableActionHandlers() {
 // ============================================================
 function buildRegistroFromForm(kind) {
   if (kind === 'trancadeira') {
-    return {
+    const base = {
       data: document.getElementById('t-data').value,
       tipoCaixa: document.getElementById('t-tipo-caixa').value,
       linha: document.getElementById('t-linha').value,
       cor: document.getElementById('t-cor').value,
       diametro: document.getElementById('t-diametro').value,
-      peso: parseFloat(document.getElementById('t-peso').value).toFixed(2),
     };
+    const items = collectTrancItemRows();
+    return items.map(it => ({
+      ...base,
+      peso: it.peso ? parseFloat(it.peso).toFixed(2) : '',
+    }));
   }
   if (kind === 'grampeadeira') {
     const base = {
@@ -1857,7 +1862,6 @@ function buildRegistroFromForm(kind) {
   if (kind === 'extensor') {
     return {
       data: document.getElementById('e-data').value,
-      tipoCaixa: document.getElementById('e-tipo-caixa').value,
       cor: document.getElementById('e-cor').value,
       diametro: document.getElementById('e-diametro').value,
       qtd: document.getElementById('e-qtd').value,
@@ -1900,6 +1904,20 @@ async function submitRegistro(kind, form) {
       }
     }
   }
+  if (kind === 'trancadeira' && !state.editing[kind]) {
+    const items = collectTrancItemRows();
+    if (items.length === 0) {
+      showToast('Adicione ao menos um peso.', 'error');
+      return;
+    }
+    for (let i = 0; i < items.length; i++) {
+      const v = parseFloat(items[i].peso);
+      if (!Number.isFinite(v) || v <= 0) {
+        showToast(`Peso ${i + 1} inválido.`, 'error');
+        return;
+      }
+    }
+  }
   if (kind === 'grampeadeira' && !heFlag.checked) {
     const opNome = document.getElementById('g-operador').value;
     const op = (state.config.operadores || []).find(o => o.nome === opNome);
@@ -1933,9 +1951,9 @@ async function submitRegistro(kind, form) {
   const editingId = state.editing[kind];
   const userId = await getCurrentUserId();
 
-  // Grampeadeira nao-editando: data eh array (varios itens). Senao, e objeto unico.
-  const isGrampBatch = kind === 'grampeadeira' && Array.isArray(data);
-  const singleData = isGrampBatch ? data[0] : data;
+  // Grampeadeira/Trancadeira nao-editando: data eh array (varios itens). Senao, e objeto unico.
+  const isBatch = (kind === 'grampeadeira' || kind === 'trancadeira') && Array.isArray(data);
+  const singleData = isBatch ? data[0] : data;
 
   if (editingId) {
     const original = state.registros[kind].find(r => r.id === editingId);
@@ -1963,7 +1981,7 @@ async function submitRegistro(kind, form) {
     renderTable(kind);
     renderDashboard();
     showToast('Registro atualizado.');
-  } else if (isGrampBatch) {
+  } else if (isBatch) {
     // Insert em lote
     if (data.length === 0) {
       showToast('Adicione ao menos um item.', 'error');
@@ -1975,77 +1993,27 @@ async function submitRegistro(kind, form) {
       .insert(rows).select();
     if (error) { showToast('Erro ao salvar: ' + error.message, 'error'); return; }
     (created || []).forEach(c => state.registros[kind].push(FROM_DB[kind](c)));
-    const stickyOp = document.getElementById('g-op').value;
-    const stickyGrampData = document.getElementById('g-data').value;
-    const stickyOperador = document.getElementById('g-operador').value;
-    const stickyGancho = document.getElementById('g-gancho').value;
-    const stickyHf = document.getElementById('g-hf').value;
-    form.reset();
-    const dateInput = form.querySelector('input[type="date"]');
-    if (dateInput) dateInput.value = todayISO();
-    heBlock.classList.remove('show');
-    heFlag.checked = false;
-    if (descFlag && descBlock) {
-      descFlag.checked = false;
-      descBlock.classList.remove('show');
-    }
-    resetItemRows();
-    document.getElementById('g-op').value = stickyOp;
-    if (stickyGrampData) document.getElementById('g-data').value = stickyGrampData;
-    if (stickyOperador) document.getElementById('g-operador').value = stickyOperador;
-    if (stickyGancho) document.getElementById('g-gancho').value = stickyGancho;
-    // Encadeia HI = HF anterior se dentro do turno
-    if (stickyHf) {
-      const op = (state.config.operadores || []).find(o => o.nome === stickyOperador);
-      const turno = op && op.turno
-        ? (state.config.turnos || []).find(t => formatTurnoLabel(t) === op.turno)
-        : null;
-      let canChain = true;
-      if (turno && turno.hi && turno.hf) {
-        const newHi = timeToMin(stickyHf);
-        const tHi = timeToMin(turno.hi);
-        const tHf = timeToMin(turno.hf);
-        if (newHi != null && tHi != null && tHf != null) {
-          const crossMidnight = tHi > tHf;
-          canChain = crossMidnight
-            ? (newHi >= tHi || newHi < tHf)
-            : (newHi >= tHi && newHi < tHf);
-          if (!canChain) {
-            showToast(`Turno de ${stickyOperador} encerrado às ${turno.hf}.`);
-          }
-        }
-      }
-      if (canChain) document.getElementById('g-hi').value = stickyHf;
-    }
-    renderTable(kind);
-    renderDashboard();
-    showToast(data.length === 1 ? 'Registro salvo com sucesso!' : `${data.length} registros salvos.`);
-  } else {
-    const dbRow = { ...TO_DB[kind](singleData, userId), hora: nowTime() };
-    const { data: created, error } = await sb.from(TABLE_FOR[kind])
-      .insert(dbRow).select().single();
-    if (error) { showToast('Erro ao salvar: ' + error.message, 'error'); return; }
-    state.registros[kind].push(FROM_DB[kind](created));
-    const stickyOp = kind === 'grampeadeira' ? document.getElementById('g-op').value : '';
-    const stickyGrampData = kind === 'grampeadeira' ? document.getElementById('g-data').value : '';
-    const stickyOperador = kind === 'grampeadeira' ? document.getElementById('g-operador').value : '';
-    const stickyHf = kind === 'grampeadeira' ? document.getElementById('g-hf').value : '';
-    const stickyLinha = kind === 'trancadeira' ? document.getElementById('t-linha').value : '';
-    const stickyTrancData = kind === 'trancadeira' ? document.getElementById('t-data').value : '';
-    form.reset();
-    const dateInput = form.querySelector('input[type="date"]');
-    if (dateInput) dateInput.value = todayISO();
+
     if (kind === 'grampeadeira') {
+      const stickyOp = document.getElementById('g-op').value;
+      const stickyGrampData = document.getElementById('g-data').value;
+      const stickyOperador = document.getElementById('g-operador').value;
+      const stickyGancho = document.getElementById('g-gancho').value;
+      const stickyHf = document.getElementById('g-hf').value;
+      form.reset();
+      const dateInput = form.querySelector('input[type="date"]');
+      if (dateInput) dateInput.value = todayISO();
       heBlock.classList.remove('show');
       heFlag.checked = false;
       if (descFlag && descBlock) {
         descFlag.checked = false;
         descBlock.classList.remove('show');
       }
+      resetItemRows();
       document.getElementById('g-op').value = stickyOp;
       if (stickyGrampData) document.getElementById('g-data').value = stickyGrampData;
       if (stickyOperador) document.getElementById('g-operador').value = stickyOperador;
-      // Encadeia: prox Hora Inicio = Hora Fim anterior, se ainda dentro do turno
+      if (stickyGancho) document.getElementById('g-gancho').value = stickyGancho;
       if (stickyHf) {
         const op = (state.config.operadores || []).find(o => o.nome === stickyOperador);
         const turno = op && op.turno
@@ -2068,11 +2036,34 @@ async function submitRegistro(kind, form) {
         }
         if (canChain) document.getElementById('g-hi').value = stickyHf;
       }
-    }
-    if (kind === 'trancadeira') {
-      if (stickyLinha) document.getElementById('t-linha').value = stickyLinha;
+    } else if (kind === 'trancadeira') {
+      const stickyLinha = document.getElementById('t-linha').value;
+      const stickyTrancData = document.getElementById('t-data').value;
+      const stickyTipoCaixa = document.getElementById('t-tipo-caixa').value;
+      const stickyCor = document.getElementById('t-cor').value;
+      const stickyDiametro = document.getElementById('t-diametro').value;
+      form.reset();
+      const dateInput = form.querySelector('input[type="date"]');
+      if (dateInput) dateInput.value = todayISO();
+      resetTrancItemRows();
       if (stickyTrancData) document.getElementById('t-data').value = stickyTrancData;
+      if (stickyLinha) document.getElementById('t-linha').value = stickyLinha;
+      if (stickyTipoCaixa) document.getElementById('t-tipo-caixa').value = stickyTipoCaixa;
+      if (stickyCor) document.getElementById('t-cor').value = stickyCor;
+      if (stickyDiametro) document.getElementById('t-diametro').value = stickyDiametro;
     }
+    renderTable(kind);
+    renderDashboard();
+    showToast(data.length === 1 ? 'Registro salvo com sucesso!' : `${data.length} registros salvos.`);
+  } else {
+    const dbRow = { ...TO_DB[kind](singleData, userId), hora: nowTime() };
+    const { data: created, error } = await sb.from(TABLE_FOR[kind])
+      .insert(dbRow).select().single();
+    if (error) { showToast('Erro ao salvar: ' + error.message, 'error'); return; }
+    state.registros[kind].push(FROM_DB[kind](created));
+    form.reset();
+    const dateInput = form.querySelector('input[type="date"]');
+    if (dateInput) dateInput.value = todayISO();
     renderTable(kind);
     renderDashboard();
     showToast('Registro salvo com sucesso!');
@@ -2154,6 +2145,70 @@ function collectItemRows() {
 resetItemRows();
 const btnAddItem = document.getElementById('btn-add-item');
 if (btnAddItem) btnAddItem.addEventListener('click', () => addItemRow());
+
+// ============================================================
+// TRANCADEIRA — Lista dinamica de pesos
+// ============================================================
+function buildTrancItemRow(peso = '') {
+  const row = document.createElement('div');
+  row.className = 'item-row item-row-single';
+  row.innerHTML = `
+    <div class="field required">
+      <label>Peso (kg)</label>
+      <input type="number" step="0.01" min="0.01" class="ti-peso" placeholder="0,00" required value="${escapeHtml(String(peso || ''))}">
+    </div>
+    <button type="button" class="item-remove">Remover</button>
+  `;
+  row.querySelector('.item-remove').addEventListener('click', () => removeTrancItemRow(row));
+  return row;
+}
+
+function addTrancItemRow(peso = '') {
+  const container = document.getElementById('t-items');
+  if (!container) return;
+  container.appendChild(buildTrancItemRow(peso));
+  updateTrancItemRemoveButtons();
+}
+
+function removeTrancItemRow(row) {
+  const container = document.getElementById('t-items');
+  if (!container) return;
+  if (container.querySelectorAll('.item-row').length <= 1) return;
+  row.remove();
+  updateTrancItemRemoveButtons();
+}
+
+function updateTrancItemRemoveButtons() {
+  const container = document.getElementById('t-items');
+  if (!container) return;
+  const rows = container.querySelectorAll('.item-row');
+  const onlyOne = rows.length === 1;
+  rows.forEach(r => {
+    const btn = r.querySelector('.item-remove');
+    if (btn) btn.disabled = onlyOne;
+  });
+}
+
+function resetTrancItemRows(items = [{}]) {
+  const container = document.getElementById('t-items');
+  if (!container) return;
+  container.innerHTML = '';
+  const list = items && items.length ? items : [{}];
+  list.forEach(it => container.appendChild(buildTrancItemRow(it.peso || '')));
+  updateTrancItemRemoveButtons();
+}
+
+function collectTrancItemRows() {
+  const container = document.getElementById('t-items');
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('.item-row')).map(r => ({
+    peso: r.querySelector('.ti-peso').value.trim(),
+  }));
+}
+
+resetTrancItemRows();
+const btnAddTrancItem = document.getElementById('btn-add-tranc-item');
+if (btnAddTrancItem) btnAddTrancItem.addEventListener('click', () => addTrancItemRow());
 
 const descFlag = document.getElementById('g-desc-flag');
 const descBlock = document.getElementById('g-desc-block');
@@ -2503,7 +2558,7 @@ const STATION_LABEL = {
 function recentDetail(kind, r) {
   if (kind === 'trancadeira') return `${r.tipoCaixa || '—'} · ${r.linha || '—'} · ${r.cor || '—'} · ${r.peso || '0'} kg`;
   if (kind === 'grampeadeira') return `${r.op || '—'} · ${r.operador || '—'} · ${r.qtd || '0'} un${r.he ? ' (+ HE)' : ''}`;
-  if (kind === 'extensor')    return `${r.tipoCaixa || '—'} · ${r.cor || '—'} · ${r.qtd || '0'} un`;
+  if (kind === 'extensor')    return `${r.cor || '—'} · ${r.diametro || '—'}mm · ${r.qtd || '0'} un`;
   return '';
 }
 
