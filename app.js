@@ -84,6 +84,8 @@ const FROM_DB = {
     gancho: row.gancho,
     he: !!row.he,
     he_dados: row.he_dados || null,
+    desconto: !!row.desconto,
+    desconto_dados: row.desconto_dados || null,
   }),
   extensor: (row) => ({
     id: row.id,
@@ -118,6 +120,8 @@ const TO_DB = {
     gancho: r.gancho,
     he: !!r.he,
     he_dados: r.he ? r.he_dados : null,
+    desconto: !!r.desconto,
+    desconto_dados: r.desconto ? r.desconto_dados : null,
   }),
   extensor: (r, userId) => ({
     user_id: userId || null,
@@ -1709,6 +1713,10 @@ function cancelEditRegistro(kind) {
     if (kind === 'grampeadeira') {
       heFlag.checked = false;
       heBlock.classList.remove('show');
+      if (descFlag && descBlock) {
+        descFlag.checked = false;
+        descBlock.classList.remove('show');
+      }
     }
     renderDropdowns();
   }
@@ -1750,6 +1758,17 @@ function fillFormFromRegistro(kind, r) {
       ['g-he-hi','g-he-hf','g-he-tam','g-he-qtd','g-he-gancho'].forEach(id => {
         document.getElementById(id).value = '';
       });
+    }
+    if (descFlag && descBlock) {
+      descFlag.checked = !!r.desconto;
+      descBlock.classList.toggle('show', !!r.desconto);
+      if (r.desconto && r.desconto_dados) {
+        document.getElementById('g-desc-motivo').value = r.desconto_dados.motivo || '';
+        document.getElementById('g-desc-duracao').value = r.desconto_dados.duracao || '';
+      } else {
+        document.getElementById('g-desc-motivo').value = '';
+        document.getElementById('g-desc-duracao').value = '';
+      }
     }
   } else if (kind === 'extensor') {
     document.getElementById('e-data').value = r.data || todayISO();
@@ -1815,6 +1834,13 @@ function buildRegistroFromForm(kind) {
         gancho: document.getElementById('g-he-gancho').value,
       };
     }
+    r.desconto = !!(descFlag && descFlag.checked);
+    if (r.desconto) {
+      r.desconto_dados = {
+        motivo: document.getElementById('g-desc-motivo').value.trim(),
+        duracao: document.getElementById('g-desc-duracao').value,
+      };
+    }
     return r;
   }
   if (kind === 'extensor') {
@@ -1836,6 +1862,15 @@ async function submitRegistro(kind, form) {
     const empty = heFields.find(id => !document.getElementById(id).value);
     if (empty) {
       showToast('Você marcou Hora Extra. Preencha todos os campos do bloco.', 'error');
+      document.getElementById(empty).focus();
+      return;
+    }
+  }
+  if (kind === 'grampeadeira' && descFlag && descFlag.checked) {
+    const descFields = ['g-desc-motivo', 'g-desc-duracao'];
+    const empty = descFields.find(id => !document.getElementById(id).value);
+    if (empty) {
+      showToast('Você marcou desconto de horas. Preencha motivo e duração.', 'error');
       document.getElementById(empty).focus();
       return;
     }
@@ -1889,6 +1924,10 @@ async function submitRegistro(kind, form) {
     if (kind === 'grampeadeira') {
       heBlock.classList.remove('show');
       heFlag.checked = false;
+      if (descFlag && descBlock) {
+        descFlag.checked = false;
+        descBlock.classList.remove('show');
+      }
     }
     renderDropdowns();
     renderTable(kind);
@@ -1912,6 +1951,10 @@ async function submitRegistro(kind, form) {
     if (kind === 'grampeadeira') {
       heBlock.classList.remove('show');
       heFlag.checked = false;
+      if (descFlag && descBlock) {
+        descFlag.checked = false;
+        descBlock.classList.remove('show');
+      }
       document.getElementById('g-op').value = stickyOp;
       if (stickyGrampData) document.getElementById('g-data').value = stickyGrampData;
       if (stickyOperador) document.getElementById('g-operador').value = stickyOperador;
@@ -1954,6 +1997,14 @@ const heBlock = document.getElementById('g-he-block');
 heFlag.addEventListener('change', () => {
   heBlock.classList.toggle('show', heFlag.checked);
 });
+
+const descFlag = document.getElementById('g-desc-flag');
+const descBlock = document.getElementById('g-desc-block');
+if (descFlag && descBlock) {
+  descFlag.addEventListener('change', () => {
+    descBlock.classList.toggle('show', descFlag.checked);
+  });
+}
 
 // Nº O.P. (grampeadeira) — somente digitos
 const gOpInput = document.getElementById('g-op');

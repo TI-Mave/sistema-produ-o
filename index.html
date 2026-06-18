@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=31">
+  <link rel="stylesheet" href="styles.css?v=32">
 
 </head>
 <body>
@@ -385,6 +385,21 @@
                 <div class="field required"><label for="g-he-gancho">Gancho</label><input type="text" id="g-he-gancho" placeholder="Identificação" list="datalist-ganchos" autocomplete="off"></div>
               </div>
             </div>
+            <div class="checkbox-field" style="margin-top: 16px;">
+              <input type="checkbox" id="g-desc-flag">
+              <label for="g-desc-flag">Houve desconto de horas (atestado, falta, etc.)</label>
+            </div>
+            <div class="extra-block" id="g-desc-block">
+              <h3>Dados do desconto</h3>
+              <div class="form-grid">
+                <div class="field required"><label for="g-desc-motivo">Motivo</label>
+                  <input type="text" id="g-desc-motivo" list="datalist-desc-motivos" autocomplete="off" placeholder="Ex.: Atestado médico">
+                </div>
+                <div class="field required"><label for="g-desc-duracao">Duração descontada</label>
+                  <input type="time" id="g-desc-duracao">
+                </div>
+              </div>
+            </div>
             <div class="btn-row">
               <button type="reset" class="btn btn-secondary">Limpar</button>
               <button type="submit" class="btn btn-primary">Salvar registro</button>
@@ -641,8 +656,16 @@
     <option value="Meta Diária"></option>
   </datalist>
   <datalist id="datalist-meta-refs"></datalist>
+  <datalist id="datalist-desc-motivos">
+    <option value="Atestado médico"></option>
+    <option value="Falta justificada"></option>
+    <option value="Saída antecipada"></option>
+    <option value="Atraso"></option>
+    <option value="Consulta médica"></option>
+    <option value="Outro"></option>
+  </datalist>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=31"></script>
-  <script src="app.js?v=31" defer></script>
+  <script src="supabase-config.js?v=32"></script>
+  <script src="app.js?v=32" defer></script>
 </body>
 </html>
