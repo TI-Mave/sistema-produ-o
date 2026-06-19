@@ -86,6 +86,7 @@ const FROM_DB = {
     he_dados: row.he_dados || null,
     desconto: !!row.desconto,
     desconto_dados: row.desconto_dados || null,
+    almoco: row.almoco || '',
   }),
   extensor: (row) => ({
     id: row.id,
@@ -121,6 +122,7 @@ const TO_DB = {
     he_dados: r.he ? r.he_dados : null,
     desconto: !!r.desconto,
     desconto_dados: r.desconto ? r.desconto_dados : null,
+    almoco: r.almoco || null,
   }),
   extensor: (r, userId) => ({
     user_id: userId || null,
@@ -1758,6 +1760,7 @@ function fillFormFromRegistro(kind, r) {
     fillSelect('g-operador', (state.config.operadores || []).map(o => o.nome), r.operador);
     document.getElementById('g-operador').value = r.operador || '';
     document.getElementById('g-gancho').value = r.gancho || '';
+    document.getElementById('g-almoco').value = r.almoco || '';
     resetItemRows([{ tam: r.tam || '', qtd: r.qtd || '' }]);
     // Editando: bloqueia adicao de mais itens (UPDATE eh sempre 1 registro)
     const btnAdd = document.getElementById('btn-add-item');
@@ -1839,6 +1842,7 @@ function buildRegistroFromForm(kind) {
       hf: document.getElementById('g-hf').value,
       operador: document.getElementById('g-operador').value,
       gancho: document.getElementById('g-gancho').value,
+      almoco: document.getElementById('g-almoco').value || '',
     };
     const he = heFlag.checked;
     const he_dados = he ? {
@@ -2005,6 +2009,7 @@ async function submitRegistro(kind, form) {
       const stickyGrampData = document.getElementById('g-data').value;
       const stickyOperador = document.getElementById('g-operador').value;
       const stickyGancho = document.getElementById('g-gancho').value;
+      const stickyAlmoco = document.getElementById('g-almoco').value;
       const stickyHf = document.getElementById('g-hf').value;
       form.reset();
       const dateInput = form.querySelector('input[type="date"]');
@@ -2020,6 +2025,7 @@ async function submitRegistro(kind, form) {
       if (stickyGrampData) document.getElementById('g-data').value = stickyGrampData;
       if (stickyOperador) document.getElementById('g-operador').value = stickyOperador;
       if (stickyGancho) document.getElementById('g-gancho').value = stickyGancho;
+      if (stickyAlmoco) document.getElementById('g-almoco').value = stickyAlmoco;
       if (stickyHf) {
         const op = (state.config.operadores || []).find(o => o.nome === stickyOperador);
         const turno = op && op.turno
@@ -2081,6 +2087,37 @@ const heBlock = document.getElementById('g-he-block');
 heFlag.addEventListener('change', () => {
   heBlock.classList.toggle('show', heFlag.checked);
 });
+
+// Auto-preenche o campo "Almoço" com a duracao do turno do operador
+function minutesBetween(hi, hf) {
+  const a = timeToMin(hi);
+  const b = timeToMin(hf);
+  if (a == null || b == null) return null;
+  let d = b - a;
+  if (d < 0) d += 24 * 60;
+  return d;
+}
+function minsToHHMM(m) {
+  if (m == null || m < 0) return '';
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+}
+function autoFillAlmocoFromOperador() {
+  const opNome = document.getElementById('g-operador').value;
+  const opAlmoco = document.getElementById('g-almoco');
+  if (!opAlmoco) return;
+  const op = (state.config.operadores || []).find(o => o.nome === opNome);
+  const turno = op && op.turno
+    ? (state.config.turnos || []).find(t => formatTurnoLabel(t) === op.turno)
+    : null;
+  if (turno && turno.almoco_hi && turno.almoco_hf) {
+    const mins = minutesBetween(turno.almoco_hi, turno.almoco_hf);
+    if (mins != null) opAlmoco.value = minsToHHMM(mins);
+  }
+}
+const gOperadorSelect = document.getElementById('g-operador');
+if (gOperadorSelect) gOperadorSelect.addEventListener('change', autoFillAlmocoFromOperador);
 
 // ============================================================
 // GRAMPEADEIRA — Lista dinamica de itens (Tamanho + Quantidade)
