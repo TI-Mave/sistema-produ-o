@@ -170,6 +170,8 @@ async function dbLoadConfig() {
     nome: t.nome,
     hi: t.hora_inicio || '',
     hf: t.hora_fim || '',
+    almoco_hi: t.almoco_inicio || '',
+    almoco_hf: t.almoco_fim || '',
   }));
   const metasList = (metasRes.data || []).map(m => ({
     id: m.id,
@@ -1295,7 +1297,7 @@ function renderTurnosTable() {
   if (!tbody) return;
   const turnos = state.config.turnos || [];
   if (turnos.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Nenhum turno cadastrado.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Nenhum turno cadastrado.</td></tr>';
     return;
   }
   tbody.innerHTML = '';
@@ -1306,6 +1308,8 @@ function renderTurnosTable() {
       `<td>${escapeHtml(t.nome)}</td>` +
       `<td>${escapeHtml(t.hi || '—')}</td>` +
       `<td>${escapeHtml(t.hf || '—')}</td>` +
+      `<td>${escapeHtml(t.almoco_hi || '—')}</td>` +
+      `<td>${escapeHtml(t.almoco_hf || '—')}</td>` +
       `<td class="td-actions"><button class="tn-remove" type="button">Remover</button></td>`;
     tbody.appendChild(tr);
   });
@@ -1320,6 +1324,8 @@ async function addTurnoFromForm() {
   if (!nome) { showToast('Informe o nome do turno.', 'error'); return; }
   const hi = document.getElementById('tn-hi').value || null;
   const hf = document.getElementById('tn-hf').value || null;
+  const almoco_hi = document.getElementById('tn-alm-hi').value || null;
+  const almoco_hf = document.getElementById('tn-alm-hf').value || null;
 
   const nomeNorm = normForCompare(nome);
   const dup = (state.config.turnos || []).find(t => normForCompare(t.nome) === nomeNorm);
@@ -1330,7 +1336,7 @@ async function addTurnoFromForm() {
   }
 
   const { data, error } = await sb.from('turnos')
-    .insert({ nome, hora_inicio: hi, hora_fim: hf })
+    .insert({ nome, hora_inicio: hi, hora_fim: hf, almoco_inicio: almoco_hi, almoco_fim: almoco_hf })
     .select().single();
   if (error) { showToast('Erro ao adicionar turno: ' + error.message, 'error'); return; }
 
@@ -1339,10 +1345,10 @@ async function addTurnoFromForm() {
     nome: data.nome,
     hi: data.hora_inicio || '',
     hf: data.hora_fim || '',
+    almoco_hi: data.almoco_inicio || '',
+    almoco_hf: data.almoco_fim || '',
   });
-  document.getElementById('tn-nome').value = '';
-  document.getElementById('tn-hi').value = '';
-  document.getElementById('tn-hf').value = '';
+  ['tn-nome','tn-hi','tn-hf','tn-alm-hi','tn-alm-hf'].forEach(id => { document.getElementById(id).value = ''; });
   renderTurnosTable();
   renderDropdowns();
   renderDashboard();

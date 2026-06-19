@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=35">
+  <link rel="stylesheet" href="styles.css?v=36">
 
 </head>
 <body>
@@ -549,19 +549,21 @@
           </div>
           <div class="card config-card config-card-wide">
             <h3>Turnos</h3>
-            <div class="config-form-grid">
+            <div class="config-form-grid config-form-grid-turno">
               <div class="field"><label for="tn-nome">Turno</label><input type="text" id="tn-nome" placeholder="Ex.: Turno A"></div>
               <div class="field"><label for="tn-hi">Hora Início</label><input type="time" id="tn-hi"></div>
               <div class="field"><label for="tn-hf">Hora Fim</label><input type="time" id="tn-hf"></div>
-              <div class="field op-btn-field"><button type="button" id="btn-add-turno" class="btn btn-primary">Adicionar turno</button></div>
+              <div class="field"><label for="tn-alm-hi">Almoço Início</label><input type="time" id="tn-alm-hi"></div>
+              <div class="field"><label for="tn-alm-hf">Almoço Fim</label><input type="time" id="tn-alm-hf"></div>
+              <div class="field op-btn-field"><button type="button" id="btn-add-turno" class="btn btn-primary">Adicionar</button></div>
             </div>
             <div class="table-wrapper">
               <table>
                 <thead>
-                  <tr><th>Turno</th><th>Hora Início</th><th>Hora Fim</th><th class="th-actions">Ações</th></tr>
+                  <tr><th>Turno</th><th>Hora Início</th><th>Hora Fim</th><th>Almoço Início</th><th>Almoço Fim</th><th class="th-actions">Ações</th></tr>
                 </thead>
                 <tbody id="tbody-turnos">
-                  <tr><td colspan="4" class="empty-state">Nenhum turno cadastrado.</td></tr>
+                  <tr><td colspan="6" class="empty-state">Nenhum turno cadastrado.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -671,7 +673,7 @@
     <option value="Outro"></option>
   </datalist>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=35"></script>
-  <script src="app.js?v=35" defer></script>
+  <script src="supabase-config.js?v=36"></script>
+  <script src="app.js?v=36" defer></script>
 </body>
 </html>

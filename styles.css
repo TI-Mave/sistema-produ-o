@@ -682,6 +682,10 @@ tbody tr:hover { background: var(--surface-2); }
 }
 .config-form-grid .op-btn-field { justify-content: flex-end; }
 .config-form-grid .op-btn-field .btn { height: 38px; }
+.config-form-grid-turno {
+  grid-template-columns: minmax(160px, 1.4fr) repeat(4, minmax(110px, 1fr)) auto;
+}
+.config-form-grid-turno .op-btn-field { align-self: end; }
 .config-card h3 {
   font-size: 14px;
   font-weight: 600;
