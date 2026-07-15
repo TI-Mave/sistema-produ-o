@@ -905,7 +905,8 @@ tbody tr:hover { background: var(--surface-2); }
   color: var(--ink-2);
   font-weight: 500;
 }
-.table-toolbar .filter-field input {
+.table-toolbar .filter-field input,
+.table-toolbar .filter-field select {
   padding: 6px 8px;
   font-family: inherit;
   font-size: 13px;
@@ -914,7 +915,8 @@ tbody tr:hover { background: var(--surface-2); }
   border: 1.5px solid var(--line-strong);
   border-radius: 6px;
 }
-.table-toolbar .filter-field input:focus {
+.table-toolbar .filter-field input:focus,
+.table-toolbar .filter-field select:focus {
   outline: none;
   border-color: var(--doca-orange);
   box-shadow: 0 0 0 3px rgba(229, 90, 31, 0.12);

@@ -249,7 +249,7 @@ const state = {
   registros: { trancadeira: [], grampeadeira: [], extensor: [] },
   editing: { trancadeira: null, grampeadeira: null, extensor: null },
   filtros: {
-    trancadeira: { de: '', ate: '', operador: '' },
+    trancadeira: { de: '', ate: '', operador: '', tipoCaixa: '', linha: '', cor: '', diametro: '' },
     grampeadeira: { de: '', ate: '', operador: '' },
     extensor:    { de: '', ate: '', operador: '' },
   },
@@ -653,17 +653,22 @@ function showToast(msg = 'Registro salvo com sucesso!', kind = 'success') {
 // FILTRO POR DATA + EXPORT CSV
 // ============================================================
 function applyFilter(items, filtro) {
-  const de = filtro && filtro.de ? filtro.de : null;
-  const ate = filtro && filtro.ate ? filtro.ate : null;
-  const op = filtro && filtro.operador ? filtro.operador : null;
-  if (!de && !ate && !op) return items;
+  if (!filtro) return items;
+  const de = filtro.de || null;
+  const ate = filtro.ate || null;
+  // Campos de igualdade (valor exato): mesma chave no filtro e no registro.
+  const EQ = ['operador', 'tipoCaixa', 'linha', 'cor', 'diametro'];
+  const active = EQ.filter(f => filtro[f]);
+  if (!de && !ate && active.length === 0) return items;
   return items.filter(r => {
     if (de || ate) {
       if (!r.data) return false;
       if (de && r.data < de) return false;
       if (ate && r.data > ate) return false;
     }
-    if (op && r.operador !== op) return false;
+    for (const f of active) {
+      if (r[f] !== filtro[f]) return false;
+    }
     return true;
   });
 }
@@ -684,7 +689,8 @@ function setExportButton(kind, count) {
   const clear = document.querySelector(`.btn-clear-filter[data-kind="${kind}"]`);
   if (clear) {
     const f = state.filtros[kind];
-    clear.disabled = !f.de && !f.ate && !f.operador;
+    const hasAny = f.de || f.ate || f.operador || f.tipoCaixa || f.linha || f.cor || f.diametro;
+    clear.disabled = !hasAny;
   }
 }
 
@@ -760,12 +766,12 @@ function setupTableToolbar() {
     if (!card || card.querySelector('.table-toolbar')) continue;
     const toolbar = document.createElement('div');
     toolbar.className = 'table-toolbar';
-    const operadorField = (kind === 'grampeadeira') ? `
-        <label class="filter-field">Operador
-          <select data-filter="operador" data-kind="${kind}">
+    const extraFields = (EXTRA_FILTERS[kind] || []).map(({ key, label }) => `
+        <label class="filter-field">${label}
+          <select data-filter="${key}" data-kind="${kind}">
             <option value="">Todos</option>
           </select>
-        </label>` : '';
+        </label>`).join('');
     toolbar.innerHTML = `
       <div class="filters">
         <label class="filter-field">De
@@ -773,7 +779,7 @@ function setupTableToolbar() {
         </label>
         <label class="filter-field">Até
           <input type="date" data-filter="ate" data-kind="${kind}">
-        </label>${operadorField}
+        </label>${extraFields}
         <button type="button" class="btn-clear-filter" data-kind="${kind}" disabled>Limpar filtro</button>
       </div>
       <button type="button" class="btn-export" data-kind="${kind}" disabled>Exportar CSV</button>
@@ -785,46 +791,71 @@ function setupTableToolbar() {
         renderTable(kind);
       });
     });
-    const opSel = toolbar.querySelector('select[data-filter="operador"]');
-    if (opSel) {
-      opSel.addEventListener('change', () => {
-        state.filtros[kind].operador = opSel.value;
+    toolbar.querySelectorAll('select[data-filter]').forEach(sel => {
+      sel.addEventListener('change', () => {
+        state.filtros[kind][sel.dataset.filter] = sel.value;
         renderTable(kind);
       });
-    }
+    });
     toolbar.querySelector('.btn-clear-filter').addEventListener('click', () => {
-      state.filtros[kind] = { de: '', ate: '', operador: '' };
+      const cleared = { de: '', ate: '' };
+      for (const { key } of (EXTRA_FILTERS[kind] || [])) cleared[key] = '';
+      state.filtros[kind] = cleared;
       toolbar.querySelectorAll('input[type="date"]').forEach(i => { i.value = ''; });
-      const sel = toolbar.querySelector('select[data-filter="operador"]');
-      if (sel) sel.value = '';
+      toolbar.querySelectorAll('select[data-filter]').forEach(s => { s.value = ''; });
       renderTable(kind);
     });
     toolbar.querySelector('.btn-export').addEventListener('click', () => exportCSV(kind));
   }
 }
 
-function renderOperatorFilter() {
-  const sel = document.querySelector('select[data-filter="operador"][data-kind="grampeadeira"]');
-  if (!sel) return;
-  const target = state.filtros.grampeadeira.operador || '';
-  sel.innerHTML = '';
-  const all = document.createElement('option');
-  all.value = '';
-  all.textContent = 'Todos';
-  sel.appendChild(all);
-  for (const op of (state.config.operadores || [])) {
-    const o = document.createElement('option');
-    o.value = op.nome;
-    o.textContent = op.nome;
-    sel.appendChild(o);
+// Filtros extras (dropdowns) por estacao, alem do periodo (De/Ate).
+const EXTRA_FILTERS = {
+  grampeadeira: [{ key: 'operador', label: 'Operador' }],
+  trancadeira: [
+    { key: 'tipoCaixa', label: 'Tipo Caixa' },
+    { key: 'linha', label: 'Linha' },
+    { key: 'cor', label: 'Cor' },
+    { key: 'diametro', label: 'Diâmetro' },
+  ],
+};
+// Fonte das opcoes de cada filtro (le da config atual).
+const FILTER_OPTIONS = {
+  operador:  () => (state.config.operadores || []).map(o => o.nome),
+  tipoCaixa: () => state.config.caixas || [],
+  linha:     () => (state.config.linhas || []).map(l => l.nome),
+  cor:       () => (state.config.cores || []).map(c => c.nome),
+  diametro:  () => state.config.diametros || [],
+};
+
+function renderFilterSelects() {
+  for (const kind of Object.keys(EXTRA_FILTERS)) {
+    for (const { key } of EXTRA_FILTERS[kind]) {
+      const sel = document.querySelector(`select[data-filter="${key}"][data-kind="${kind}"]`);
+      if (!sel) continue;
+      const target = (state.filtros[kind] && state.filtros[kind][key]) || '';
+      const values = FILTER_OPTIONS[key] ? FILTER_OPTIONS[key]() : [];
+      sel.innerHTML = '';
+      const all = document.createElement('option');
+      all.value = '';
+      all.textContent = 'Todos';
+      sel.appendChild(all);
+      for (const v of values) {
+        const o = document.createElement('option');
+        o.value = v;
+        o.textContent = v;
+        sel.appendChild(o);
+      }
+      // Preserva o valor selecionado mesmo se ele sumiu da config.
+      if (target && ![...sel.options].some(o => o.value === target)) {
+        const o = document.createElement('option');
+        o.value = target;
+        o.textContent = target + ' (removido)';
+        sel.appendChild(o);
+      }
+      sel.value = target;
+    }
   }
-  if (target && ![...sel.options].some(o => o.value === target)) {
-    const o = document.createElement('option');
-    o.value = target;
-    o.textContent = target + ' (removido)';
-    sel.appendChild(o);
-  }
-  sel.value = target;
 }
 
 // ============================================================
@@ -866,7 +897,7 @@ function renderDropdowns() {
   fillSelect('g-operador', (cfg.operadores || []).map(o => o.nome));
   fillSelect('e-cor', corNomes);
   fillSelect('e-diametro', cfg.diametros);
-  renderOperatorFilter();
+  renderFilterSelects();
   populateOpTurnoSelect();
   populateMetaRefsDatalist();
   populateAutocompleteDatalist('datalist-tamanhos', cfg.tamanhos || []);
@@ -1383,6 +1414,7 @@ function populateMetaRefsDatalist() {
   for (const op of (state.config.operadores || [])) if (op.nome) refs.add(op.nome);
   for (const ln of (state.config.linhas || [])) if (ln.nome) refs.add(ln.nome);
   for (const t of (state.config.turnos || [])) if (t.nome) refs.add(t.nome);
+  for (const g of (state.config.ganchos || [])) if (g) refs.add(g);
   dl.innerHTML = '';
   for (const v of refs) {
     const o = document.createElement('option');
@@ -2566,6 +2598,7 @@ function renderMetas(totalUnidades, grHoje) {
     const tipoLower = String(m.tipo || '').toLowerCase();
     const isGeral = /\bgeral\b/.test(tipoLower);
     const isOperador = /\boperador\b/.test(tipoLower) && m.operador;
+    const isGancho = /\bgancho\b/.test(tipoLower) && m.operador;
     let realizado = null;
     let label = m.tipo || 'Meta';
     if (m.operador) label += ` — ${m.operador}`;
@@ -2577,6 +2610,18 @@ function renderMetas(totalUnidades, grHoje) {
         .filter(r => r.operador && normForCompare(r.operador) === normForCompare(m.operador))
         .reduce((s, r) => s + (parseInt(r.qtd, 10) || 0)
                             + (r.he && r.he_dados ? (parseInt(r.he_dados.qtd, 10) || 0) : 0), 0);
+    } else if (isGancho) {
+      // Soma a producao do gancho: qtd principal (gancho do registro) +
+      // qtd da hora extra (gancho da HE), cada um comparado ao gancho da meta.
+      const ref = normForCompare(m.operador);
+      realizado = grHoje.reduce((s, r) => {
+        let n = 0;
+        if (r.gancho && normForCompare(r.gancho) === ref) n += parseInt(r.qtd, 10) || 0;
+        if (r.he && r.he_dados && r.he_dados.gancho && normForCompare(r.he_dados.gancho) === ref) {
+          n += parseInt(r.he_dados.qtd, 10) || 0;
+        }
+        return s + n;
+      }, 0);
     }
 
     const div = document.createElement('div');
