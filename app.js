@@ -1882,6 +1882,21 @@ function buildRegistroFromForm(kind) {
 
 async function submitRegistro(kind, form) {
   if (!sb) return;
+  // Validacao explicita da trancadeira: evita o "nao salva" silencioso quando
+  // um campo de referencia esta vazio (ex.: Tipo de Caixa ou Linha nao cadastrados).
+  // Sem isso, a validacao nativa do navegador bloqueava o envio sem mensagem clara.
+  if (kind === 'trancadeira') {
+    const faltando = [];
+    if (!document.getElementById('t-data').value) faltando.push('Data');
+    if (!document.getElementById('t-tipo-caixa').value) faltando.push('Tipo de Caixa');
+    if (!document.getElementById('t-linha').value) faltando.push('Linha');
+    if (!document.getElementById('t-cor').value) faltando.push('Cor');
+    if (!document.getElementById('t-diametro').value) faltando.push('Diâmetro');
+    if (faltando.length) {
+      showToast('Selecione: ' + faltando.join(', ') + '. Se a lista estiver vazia, cadastre em Configurações.', 'error');
+      return;
+    }
+  }
   if (kind === 'grampeadeira' && heFlag.checked) {
     const heFields = ['g-he-hi', 'g-he-hf', 'g-he-tam', 'g-he-qtd', 'g-he-gancho'];
     const empty = heFields.find(id => !document.getElementById(id).value);
