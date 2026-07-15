@@ -921,6 +921,50 @@ tbody tr:hover { background: var(--surface-2); }
   border-color: var(--doca-orange);
   box-shadow: 0 0 0 3px rgba(229, 90, 31, 0.12);
 }
+
+/* Paginacao das tabelas de registros */
+.table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.table-pagination .pagination-info {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.table-pagination .pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.table-pagination .pagination-page {
+  font-size: 13px;
+  color: var(--ink-2);
+  padding: 0 4px;
+  white-space: nowrap;
+}
+.table-pagination .pg-btn {
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--line-strong);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.table-pagination .pg-btn:hover:not(:disabled) {
+  border-color: var(--doca-orange);
+}
+.table-pagination .pg-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .btn-clear-filter {
   background: transparent;
   border: none;

@@ -202,19 +202,36 @@ async function dbLoadConfig() {
   };
 }
 
+// Busca TODAS as linhas de uma tabela, contornando o limite de 1000 linhas
+// por requisicao do PostgREST. Pagina de 1000 em 1000 via .range() ate acabar.
+async function fetchAllRows(table) {
+  const PAGE = 1000;
+  let from = 0;
+  let all = [];
+  while (true) {
+    const { data, error } = await sb.from(table)
+      .select('*')
+      .order('created_at', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const rows = data || [];
+    all = all.concat(rows);
+    if (rows.length < PAGE) break; // ultima pagina
+    from += PAGE;
+  }
+  return all;
+}
+
 async function dbLoadRegistros() {
-  const [trRes, grRes, exRes] = await Promise.all([
-    sb.from('registros_trancadeira').select('*').order('created_at', { ascending: true }),
-    sb.from('registros_grampeadeira').select('*').order('created_at', { ascending: true }),
-    sb.from('registros_extensor').select('*').order('created_at', { ascending: true }),
+  const [tr, gr, ex] = await Promise.all([
+    fetchAllRows('registros_trancadeira'),
+    fetchAllRows('registros_grampeadeira'),
+    fetchAllRows('registros_extensor'),
   ]);
-  if (trRes.error) throw trRes.error;
-  if (grRes.error) throw grRes.error;
-  if (exRes.error) throw exRes.error;
   return {
-    trancadeira:  (trRes.data || []).map(FROM_DB.trancadeira),
-    grampeadeira: (grRes.data || []).map(FROM_DB.grampeadeira),
-    extensor:     (exRes.data || []).map(FROM_DB.extensor),
+    trancadeira:  tr.map(FROM_DB.trancadeira),
+    grampeadeira: gr.map(FROM_DB.grampeadeira),
+    extensor:     ex.map(FROM_DB.extensor),
   };
 }
 
@@ -248,6 +265,7 @@ const state = {
   recovering: false,
   registros: { trancadeira: [], grampeadeira: [], extensor: [] },
   editing: { trancadeira: null, grampeadeira: null, extensor: null },
+  pagina: { trancadeira: 1, grampeadeira: 1, extensor: 1 },
   filtros: {
     trancadeira: { de: '', ate: '', operador: '', tipoCaixa: '', linha: '', cor: '', diametro: '' },
     grampeadeira: { de: '', ate: '', operador: '' },
@@ -788,12 +806,14 @@ function setupTableToolbar() {
     toolbar.querySelectorAll('input[type="date"]').forEach(input => {
       input.addEventListener('input', () => {
         state.filtros[kind][input.dataset.filter] = input.value;
+        state.pagina[kind] = 1;
         renderTable(kind);
       });
     });
     toolbar.querySelectorAll('select[data-filter]').forEach(sel => {
       sel.addEventListener('change', () => {
         state.filtros[kind][sel.dataset.filter] = sel.value;
+        state.pagina[kind] = 1;
         renderTable(kind);
       });
     });
@@ -803,6 +823,7 @@ function setupTableToolbar() {
       state.filtros[kind] = cleared;
       toolbar.querySelectorAll('input[type="date"]').forEach(i => { i.value = ''; });
       toolbar.querySelectorAll('select[data-filter]').forEach(s => { s.value = ''; });
+      state.pagina[kind] = 1;
       renderTable(kind);
     });
     toolbar.querySelector('.btn-export').addEventListener('click', () => exportCSV(kind));
@@ -1627,6 +1648,8 @@ function actionsCell() {
   </td>`;
 }
 
+const PAGE_SIZE = 100;
+
 function renderTable(kind) {
   const meta = TABLE_META[kind];
   const tbody = document.getElementById(meta.tbodyId);
@@ -1638,16 +1661,73 @@ function renderTable(kind) {
   if (items.length === 0) {
     const msg = all.length === 0 ? EMPTY_MSG : 'Nenhum registro no período selecionado.';
     tbody.innerHTML = `<tr><td colspan="${meta.colspan}" class="empty-state">${msg}</td></tr>`;
+    renderPagination(kind, 1, 0, 0, 0, 0);
     return;
   }
-  for (let i = items.length - 1; i >= 0; i--) {
-    const r = items[i];
+  // Mais recentes primeiro, depois pagina de 100 em 100.
+  const ordered = items.slice().reverse();
+  const totalPages = Math.ceil(ordered.length / PAGE_SIZE);
+  let page = state.pagina[kind] || 1;
+  if (page > totalPages) page = totalPages;
+  if (page < 1) page = 1;
+  state.pagina[kind] = page;
+  const start = (page - 1) * PAGE_SIZE;
+  const pageItems = ordered.slice(start, start + PAGE_SIZE);
+  for (const r of pageItems) {
     const tr = document.createElement('tr');
     tr.dataset.id = r.id;
     if (state.editing[kind] === r.id) tr.classList.add('row-editing');
     tr.innerHTML = meta.rowCells(r) + actionsCell();
     tbody.appendChild(tr);
   }
+  renderPagination(kind, page, totalPages, ordered.length, start, pageItems.length);
+}
+
+// Barra de paginacao abaixo da tabela. Aparece so quando ha mais de 1 pagina.
+function renderPagination(kind, page, totalPages, totalItems, start, shown) {
+  const meta = TABLE_META[kind];
+  const tbody = document.getElementById(meta.tbodyId);
+  if (!tbody) return;
+  const wrapper = tbody.closest('.table-wrapper');
+  const card = wrapper ? wrapper.closest('.card') : null;
+  if (!card) return;
+  let pag = card.querySelector('.table-pagination');
+  if (totalPages <= 1) {
+    if (pag) pag.remove();
+    return;
+  }
+  if (!pag) {
+    pag = document.createElement('div');
+    pag.className = 'table-pagination';
+    if (wrapper.nextSibling) card.insertBefore(pag, wrapper.nextSibling);
+    else card.appendChild(pag);
+  }
+  const from = start + 1;
+  const to = start + shown;
+  pag.innerHTML = `
+    <span class="pagination-info">${from}–${to} de ${totalItems} registros</span>
+    <div class="pagination-controls">
+      <button type="button" class="pg-btn pg-first" ${page === 1 ? 'disabled' : ''}>«</button>
+      <button type="button" class="pg-btn pg-prev" ${page === 1 ? 'disabled' : ''}>‹ Anterior</button>
+      <span class="pagination-page">Página ${page} de ${totalPages}</span>
+      <button type="button" class="pg-btn pg-next" ${page === totalPages ? 'disabled' : ''}>Próxima ›</button>
+      <button type="button" class="pg-btn pg-last" ${page === totalPages ? 'disabled' : ''}>»</button>
+    </div>
+  `;
+  pag.querySelector('.pg-first').onclick = () => goToPage(kind, 1);
+  pag.querySelector('.pg-prev').onclick = () => goToPage(kind, page - 1);
+  pag.querySelector('.pg-next').onclick = () => goToPage(kind, page + 1);
+  pag.querySelector('.pg-last').onclick = () => goToPage(kind, totalPages);
+}
+
+function goToPage(kind, page) {
+  const totalItems = applyFilter(state.registros[kind], state.filtros[kind]).length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  state.pagina[kind] = Math.min(Math.max(1, page), totalPages);
+  renderTable(kind);
+  const tbody = document.getElementById(TABLE_META[kind].tbodyId);
+  const card = tbody ? tbody.closest('.card') : null;
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderAllTables() {
