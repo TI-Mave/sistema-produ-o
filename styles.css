@@ -1028,6 +1028,33 @@ tbody tr:hover { background: var(--surface-2); }
 .row-actions .demote { color: var(--ink-2); }
 .row-actions .demote:hover { background: var(--surface-2); }
 .row-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+/* ========== AÇÕES NAS TABELAS DE CONFIGURAÇÕES ========== */
+/* Editar (contorno neutro) × Remover (vermelho), separados para evitar cliques por engano */
+.td-actions { white-space: nowrap; text-align: right; }
+.td-actions button {
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-2);
+}
+.td-actions button + button { margin-left: 10px; }
+.td-actions .mt-edit:hover,
+.td-actions .mt-cancel:hover { background: var(--surface-2); border-color: var(--doca-orange); color: var(--doca-orange); }
+.td-actions .mt-save { color: var(--doca-orange); border-color: var(--doca-orange); }
+.td-actions .mt-save:hover { background: var(--doca-orange-soft); }
+.td-actions .mt-remove,
+.td-actions .op-remove,
+.td-actions .ln-remove,
+.td-actions .tn-remove { color: var(--danger); border-color: var(--danger); }
+.td-actions .mt-remove:hover,
+.td-actions .op-remove:hover,
+.td-actions .ln-remove:hover,
+.td-actions .tn-remove:hover { background: var(--danger-bg); }
 /* ========== CARD EM MODO EDIÇÃO ========== */
 .card.editing {
   border-color: var(--doca-orange);

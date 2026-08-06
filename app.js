@@ -271,6 +271,7 @@ const state = {
     grampeadeira: { de: '', ate: '', operador: '' },
     extensor:    { de: '', ate: '', operador: '' },
   },
+  metaFiltros: { tipo: '', ref: '' },
 };
 
 // ============================================================
@@ -883,7 +884,10 @@ function renderFilterSelects() {
 // DROPDOWNS DOS FORMULÁRIOS
 // ============================================================
 function fillSelect(selectId, options, ensureValue) {
-  const sel = document.getElementById(selectId);
+  fillSelectEl(document.getElementById(selectId), options, ensureValue);
+}
+
+function fillSelectEl(sel, options, ensureValue) {
   if (!sel) return;
   const previous = sel.value;
   sel.innerHTML = '';
@@ -916,24 +920,15 @@ function renderDropdowns() {
   fillSelect('t-cor', corNomes);
   fillSelect('t-diametro', cfg.diametros);
   fillSelect('g-operador', (cfg.operadores || []).map(o => o.nome));
+  fillSelect('g-gancho', cfg.ganchos || []);
+  fillSelect('g-he-tam', cfg.tamanhos || []);
+  fillSelect('g-he-gancho', cfg.ganchos || []);
   fillSelect('e-cor', corNomes);
   fillSelect('e-diametro', cfg.diametros);
+  document.querySelectorAll('.gi-tam').forEach(sel => fillSelectEl(sel, cfg.tamanhos || []));
   renderFilterSelects();
   populateOpTurnoSelect();
   populateMetaRefsDatalist();
-  populateAutocompleteDatalist('datalist-tamanhos', cfg.tamanhos || []);
-  populateAutocompleteDatalist('datalist-ganchos', cfg.ganchos || []);
-}
-
-function populateAutocompleteDatalist(id, values) {
-  const dl = document.getElementById(id);
-  if (!dl) return;
-  dl.innerHTML = '';
-  for (const v of values) {
-    const o = document.createElement('option');
-    o.value = v;
-    dl.appendChild(o);
-  }
 }
 
 // ============================================================
@@ -1444,12 +1439,52 @@ function populateMetaRefsDatalist() {
   }
 }
 
+function renderMetaFilterSelects() {
+  const f = state.metaFiltros;
+  const todas = state.config.metas || [];
+  const fillFilter = (id, values, current, allLabel) => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '';
+    const all = document.createElement('option');
+    all.value = '';
+    all.textContent = allLabel;
+    sel.appendChild(all);
+    for (const v of values) {
+      const o = document.createElement('option');
+      o.value = v;
+      o.textContent = v;
+      sel.appendChild(o);
+    }
+    // Preserva o filtro ativo mesmo se a última meta com esse valor foi removida.
+    if (current && ![...sel.options].some(o => o.value === current)) {
+      const o = document.createElement('option');
+      o.value = current;
+      o.textContent = current + ' (removido)';
+      sel.appendChild(o);
+    }
+    sel.value = current || '';
+  };
+  fillFilter('mt-filtro-tipo', [...new Set(todas.map(m => m.tipo).filter(Boolean))], f.tipo, 'Todos');
+  fillFilter('mt-filtro-ref', [...new Set(todas.map(m => m.operador).filter(Boolean))], f.ref, 'Todas');
+  const clear = document.getElementById('mt-filtro-limpar');
+  if (clear) clear.disabled = !(f.tipo || f.ref);
+}
+
 function renderMetasTable() {
   const tbody = document.getElementById('tbody-metas');
   if (!tbody) return;
-  const metas = state.config.metas || [];
+  renderMetaFilterSelects();
+  const todas = state.config.metas || [];
+  const f = state.metaFiltros;
+  const metas = todas.filter(m =>
+    (!f.tipo || m.tipo === f.tipo) &&
+    (!f.ref || (m.operador || '') === f.ref)
+  );
   if (metas.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Nenhuma meta cadastrada.</td></tr>';
+    tbody.innerHTML = todas.length === 0
+      ? '<tr><td colspan="4" class="empty-state">Nenhuma meta cadastrada.</td></tr>'
+      : '<tr><td colspan="4" class="empty-state">Nenhuma meta corresponde ao filtro.</td></tr>';
     return;
   }
   tbody.innerHTML = '';
@@ -1585,6 +1620,22 @@ async function removeMeta(id) {
 
 const btnAddMeta = document.getElementById('btn-add-meta');
 if (btnAddMeta) btnAddMeta.addEventListener('click', addMetaFromForm);
+
+const metaFiltroTipo = document.getElementById('mt-filtro-tipo');
+if (metaFiltroTipo) metaFiltroTipo.addEventListener('change', () => {
+  state.metaFiltros.tipo = metaFiltroTipo.value;
+  renderMetasTable();
+});
+const metaFiltroRef = document.getElementById('mt-filtro-ref');
+if (metaFiltroRef) metaFiltroRef.addEventListener('change', () => {
+  state.metaFiltros.ref = metaFiltroRef.value;
+  renderMetasTable();
+});
+const metaFiltroLimpar = document.getElementById('mt-filtro-limpar');
+if (metaFiltroLimpar) metaFiltroLimpar.addEventListener('click', () => {
+  state.metaFiltros = { tipo: '', ref: '' };
+  renderMetasTable();
+});
 
 
 // ============================================================
@@ -1871,6 +1922,7 @@ function fillFormFromRegistro(kind, r) {
     document.getElementById('g-hf').value = r.hf || '';
     fillSelect('g-operador', (state.config.operadores || []).map(o => o.nome), r.operador);
     document.getElementById('g-operador').value = r.operador || '';
+    fillSelect('g-gancho', state.config.ganchos || [], r.gancho);
     document.getElementById('g-gancho').value = r.gancho || '';
     document.getElementById('g-almoco').value = r.almoco || '';
     resetItemRows([{ tam: r.tam || '', qtd: r.qtd || '' }]);
@@ -1880,6 +1932,8 @@ function fillFormFromRegistro(kind, r) {
     heFlag.checked = !!r.he;
     heBlock.classList.toggle('show', !!r.he);
     if (r.he && r.he_dados) {
+      fillSelect('g-he-tam', state.config.tamanhos || [], r.he_dados.tam);
+      fillSelect('g-he-gancho', state.config.ganchos || [], r.he_dados.gancho);
       document.getElementById('g-he-hi').value = r.he_dados.hi || '';
       document.getElementById('g-he-hf').value = r.he_dados.hf || '';
       document.getElementById('g-he-tam').value = r.he_dados.tam || '';
@@ -2004,6 +2058,18 @@ async function submitRegistro(kind, form) {
     if (!document.getElementById('t-linha').value) faltando.push('Linha');
     if (!document.getElementById('t-cor').value) faltando.push('Cor');
     if (!document.getElementById('t-diametro').value) faltando.push('Diâmetro');
+    if (faltando.length) {
+      showToast('Selecione: ' + faltando.join(', ') + '. Se a lista estiver vazia, cadastre em Configurações.', 'error');
+      return;
+    }
+  }
+  if (kind === 'grampeadeira') {
+    const faltando = [];
+    if (!document.getElementById('g-data').value) faltando.push('Data');
+    if (!document.getElementById('g-hi').value) faltando.push('Hora Início');
+    if (!document.getElementById('g-hf').value) faltando.push('Hora Fim');
+    if (!document.getElementById('g-operador').value) faltando.push('Operador');
+    if (!document.getElementById('g-gancho').value) faltando.push('Gancho');
     if (faltando.length) {
       showToast('Selecione: ' + faltando.join(', ') + '. Se a lista estiver vazia, cadastre em Configurações.', 'error');
       return;
@@ -2255,7 +2321,7 @@ function buildItemRow(tam = '', qtd = '') {
   row.innerHTML = `
     <div class="field required">
       <label>Tamanho</label>
-      <input type="text" class="gi-tam" placeholder="Ex.: 8m" list="datalist-tamanhos" autocomplete="off" required value="${escapeHtml(String(tam || ''))}">
+      <select class="gi-tam" required></select>
     </div>
     <div class="field required">
       <label>Quantidade</label>
@@ -2263,6 +2329,9 @@ function buildItemRow(tam = '', qtd = '') {
     </div>
     <button type="button" class="item-remove">Remover</button>
   `;
+  const tamSel = row.querySelector('.gi-tam');
+  fillSelectEl(tamSel, state.config.tamanhos || [], tam ? String(tam) : '');
+  tamSel.value = tam ? String(tam) : '';
   row.querySelector('.item-remove').addEventListener('click', () => removeItemRow(row));
   return row;
 }
