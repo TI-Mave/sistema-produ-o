@@ -588,6 +588,35 @@ tbody tr:hover { background: var(--surface-2); }
   gap: 20px;
 }
 .config-card { display: block; }
+/* Sub-abas das Configurações: mostra uma seção por vez (menos scroll) */
+.config-subtabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.config-subtab {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.config-subtab:hover {
+  border-color: var(--doca-orange);
+  color: var(--doca-orange);
+}
+.config-subtab.active {
+  background: var(--doca-orange);
+  border-color: var(--doca-orange);
+  color: #fff;
+  font-weight: 600;
+}
 .items-block {
   margin-top: 16px;
   padding: 16px;
@@ -881,6 +910,9 @@ tbody tr:hover { background: var(--surface-2); }
 .station-pill.trancadeira { background: #FFF1E8; color: #B8410E; }
 .station-pill.grampeadeira { background: #E8F4ED; color: #2D7A4A; }
 .station-pill.extensor { background: #E8F0FB; color: #2563EB; }
+.station-pill.mangueira { background: #F3EDFB; color: #7C3AED; }
+.station-pill.corda { background: #E4F5F3; color: #0F766E; }
+.station-pill.retorno { background: #FBF3DC; color: #B45309; }
 
 /* ========== TOOLBAR DA TABELA (filtro + export) ========== */
 .table-toolbar {

@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=41">
+  <link rel="stylesheet" href="styles.css?v=42">
 
 </head>
 <body>
@@ -249,6 +249,9 @@
       <button class="tab" data-tab="trancadeiras">Trançadeiras</button>
       <button class="tab" data-tab="grampeadeiras">Grampeadeiras</button>
       <button class="tab" data-tab="extensor">Extensor Metro</button>
+      <button class="tab" data-tab="mangueiras">Mangueiras</button>
+      <button class="tab" data-tab="cordas">Cordas</button>
+      <button class="tab" data-tab="retorno">Retorno Industrializado</button>
       <button class="tab" data-tab="configuracoes">Configurações</button>
       <button class="tab admin-only" data-tab="usuarios" id="tab-usuarios" style="display:none">Usuários</button>
     </nav>
@@ -274,6 +277,21 @@
             <div class="kpi-label">Extensor Metro · hoje</div>
             <div class="kpi-value" id="kpi-extensor-count">0</div>
             <div class="kpi-sub" id="kpi-extensor-sub">0 unidades produzidas</div>
+          </div>
+          <div class="card kpi-card" data-go="mangueiras">
+            <div class="kpi-label">Mangueiras · hoje</div>
+            <div class="kpi-value" id="kpi-mangueira-count">0</div>
+            <div class="kpi-sub" id="kpi-mangueira-sub">0 unidades produzidas</div>
+          </div>
+          <div class="card kpi-card" data-go="cordas">
+            <div class="kpi-label">Cordas · hoje</div>
+            <div class="kpi-value" id="kpi-corda-count">0</div>
+            <div class="kpi-sub" id="kpi-corda-sub">0 unidades produzidas</div>
+          </div>
+          <div class="card kpi-card" data-go="retorno">
+            <div class="kpi-label">Retorno Ind. · hoje</div>
+            <div class="kpi-value" id="kpi-retorno-count">0</div>
+            <div class="kpi-sub" id="kpi-retorno-sub">0 unidades produzidas</div>
           </div>
         </div>
         <div class="card">
@@ -478,14 +496,153 @@
           </div>
         </div>
       </section>
+      <!-- MANGUEIRAS -->
+      <section class="panel" id="panel-mangueiras">
+        <div class="panel-header">
+          <h1>Mangueiras</h1>
+          <p>Registre a produção de mangueiras por apenado.</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Novo registro</h2>
+            <span class="badge">Campos com * são obrigatórios</span>
+          </div>
+          <form id="form-mangueira" novalidate>
+            <div class="form-grid">
+              <div class="field required"><label for="m-data">Data</label><input type="date" id="m-data" required></div>
+              <div class="field required"><label for="m-nome">Nome</label>
+                <select id="m-nome" required></select>
+              </div>
+              <div class="field required"><label for="m-qtd">Quantidade</label><input type="number" min="1" id="m-qtd" placeholder="0" required></div>
+            </div>
+            <div class="btn-row">
+              <button type="reset" class="btn btn-secondary">Limpar</button>
+              <button type="submit" class="btn btn-primary">Salvar registro</button>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Registros</h2>
+            <span class="badge" id="count-mangueira">0 registros</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>Hora reg.</th><th>Data</th><th>Nome</th><th>Quantidade</th><th class="th-actions">Ações</th></tr>
+              </thead>
+              <tbody id="tbody-mangueira">
+                <tr><td colspan="5" class="empty-state">Nenhum registro hoje. Use o formulário acima.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <!-- CORDAS -->
+      <section class="panel" id="panel-cordas">
+        <div class="panel-header">
+          <h1>Cordas</h1>
+          <p>Registre a produção de cordas por apenado.</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Novo registro</h2>
+            <span class="badge">Campos com * são obrigatórios</span>
+          </div>
+          <form id="form-corda" novalidate>
+            <div class="form-grid">
+              <div class="field required"><label for="c-data">Data</label><input type="date" id="c-data" required></div>
+              <div class="field required"><label for="c-nome">Nome</label>
+                <select id="c-nome" required></select>
+              </div>
+              <div class="field required"><label for="c-qtd">Quantidade</label><input type="number" min="1" id="c-qtd" placeholder="0" required></div>
+            </div>
+            <div class="btn-row">
+              <button type="reset" class="btn btn-secondary">Limpar</button>
+              <button type="submit" class="btn btn-primary">Salvar registro</button>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Registros</h2>
+            <span class="badge" id="count-corda">0 registros</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>Hora reg.</th><th>Data</th><th>Nome</th><th>Quantidade</th><th class="th-actions">Ações</th></tr>
+              </thead>
+              <tbody id="tbody-corda">
+                <tr><td colspan="5" class="empty-state">Nenhum registro hoje. Use o formulário acima.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <!-- RETORNO INDUSTRIALIZADO -->
+      <section class="panel" id="panel-retorno">
+        <div class="panel-header">
+          <h1>Retorno Industrializado</h1>
+          <p>Registre o retorno industrializado por tamanho e tipo de pacote.</p>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Novo registro</h2>
+            <span class="badge">Campos com * são obrigatórios</span>
+          </div>
+          <form id="form-retorno" novalidate>
+            <div class="form-grid">
+              <div class="field required"><label for="r-data">Data</label><input type="date" id="r-data" required></div>
+              <div class="field required"><label for="r-tamanho">Tamanho</label>
+                <select id="r-tamanho" required></select>
+              </div>
+            </div>
+            <div class="items-block">
+              <div class="items-block-header">
+                <h3>Pacotes</h3>
+                <span class="badge">Tipos definidos em Configurações</span>
+              </div>
+              <div id="r-pacotes" class="form-grid"></div>
+            </div>
+            <div class="btn-row">
+              <button type="reset" class="btn btn-secondary">Limpar</button>
+              <button type="submit" class="btn btn-primary">Salvar registro</button>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Registros</h2>
+            <span class="badge" id="count-retorno">0 registros</span>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>Hora reg.</th><th>Data</th><th>Tamanho</th><th>Pacotes</th><th>Total</th><th class="th-actions">Ações</th></tr>
+              </thead>
+              <tbody id="tbody-retorno">
+                <tr><td colspan="6" class="empty-state">Nenhum registro hoje. Use o formulário acima.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
       <!-- CONFIGURAÃ‡Ã•ES -->
       <section class="panel" id="panel-configuracoes">
         <div class="panel-header">
           <h1>Configurações</h1>
           <p>Cadastros de referência usados nos formulários de registro.</p>
         </div>
+        <nav class="config-subtabs" id="config-subtabs">
+          <button type="button" class="config-subtab active" data-section="listas">Listas de referência</button>
+          <button type="button" class="config-subtab" data-section="linhas">Linhas</button>
+          <button type="button" class="config-subtab" data-section="turnos">Turnos</button>
+          <button type="button" class="config-subtab" data-section="operadores">Operadores</button>
+          <button type="button" class="config-subtab" data-section="metas">Metas</button>
+        </nav>
         <div class="config-grid">
-          <div class="card config-card config-card-wide">
+          <div class="card config-card config-card-wide" data-config-section="listas">
             <h3>Listas de referência</h3>
             <div class="config-trio">
               <div class="config-trio-item">
@@ -528,9 +685,17 @@
                   <button onclick="addItem('list-ganchos', 'input-gancho')">Adicionar</button>
                 </div>
               </div>
+              <div class="config-trio-item">
+                <h4>Pacotes (Retorno Ind.)</h4>
+                <ul class="config-list" id="list-pacotes"></ul>
+                <div class="config-add">
+                  <input type="text" placeholder="Ex.: PCT 10" id="input-pacote">
+                  <button onclick="addItem('list-pacotes', 'input-pacote')">Adicionar</button>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="card config-card config-card-wide">
+          <div class="card config-card config-card-wide" data-config-section="linhas">
             <h3>Linhas de Produção</h3>
             <div class="config-form-grid">
               <div class="field"><label for="ln-nome">Linha</label><input type="text" id="ln-nome" placeholder="Ex.: Linha 1"></div>
@@ -548,7 +713,7 @@
               </table>
             </div>
           </div>
-          <div class="card config-card config-card-wide">
+          <div class="card config-card config-card-wide" data-config-section="turnos">
             <h3>Turnos</h3>
             <div class="config-form-grid config-form-grid-turno">
               <div class="field"><label for="tn-nome">Turno</label><input type="text" id="tn-nome" placeholder="Ex.: Turno A"></div>
@@ -569,13 +734,24 @@
               </table>
             </div>
           </div>
-          <div class="card config-card config-card-wide">
+          <div class="card config-card config-card-wide" data-config-section="operadores">
             <h3>Operadores</h3>
             <div class="config-form-grid">
               <div class="field"><label for="op-nome">Nome</label><input type="text" id="op-nome" placeholder="Ex.: João Silva"></div>
               <div class="field"><label for="op-matricula">Nº Matrícula</label><input type="text" id="op-matricula" inputmode="numeric" pattern="\d*" placeholder="Ex.: 12345"></div>
-              <div class="field"><label for="op-funcao">Função</label><input type="text" id="op-funcao" placeholder="Ex.: Operador grampeadeira"></div>
+              <div class="field"><label for="op-funcao">Função</label><input type="text" id="op-funcao" list="datalist-funcoes" autocomplete="off" placeholder="Ex.: Operador grampeadeira, Apenado"></div>
               <div class="field op-btn-field"><button type="button" id="btn-add-operador" class="btn btn-primary">Adicionar operador</button></div>
+            </div>
+            <div class="table-toolbar">
+              <div class="filters">
+                <label class="filter-field">Buscar
+                  <input type="search" id="op-filtro-busca" placeholder="Nome, matrícula ou função">
+                </label>
+                <label class="filter-field">Função
+                  <select id="op-filtro-funcao"><option value="">Todas</option></select>
+                </label>
+                <button type="button" class="btn-clear-filter" id="op-filtro-limpar" disabled>Limpar filtro</button>
+              </div>
             </div>
             <div class="table-wrapper">
               <table>
@@ -588,7 +764,7 @@
               </table>
             </div>
           </div>
-          <div class="card config-card config-card-wide">
+          <div class="card config-card config-card-wide" data-config-section="metas">
             <h3>Metas de Produção</h3>
             <div class="config-form-grid">
               <div class="field"><label for="mt-tipo">Tipo Meta</label>
@@ -675,6 +851,12 @@
     <option value="Meta Diária"></option>
   </datalist>
   <datalist id="datalist-meta-refs"></datalist>
+  <datalist id="datalist-funcoes">
+    <option value="Apenado"></option>
+    <option value="Operador grampeadeira"></option>
+    <option value="Operador trançadeira"></option>
+    <option value="Auxiliar de produção"></option>
+  </datalist>
   <datalist id="datalist-desc-motivos">
     <option value="Atestado médico"></option>
     <option value="Falta justificada"></option>
@@ -684,7 +866,7 @@
     <option value="Outro"></option>
   </datalist>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=41"></script>
-  <script src="app.js?v=41" defer></script>
+  <script src="supabase-config.js?v=42"></script>
+  <script src="app.js?v=42" defer></script>
 </body>
 </html>

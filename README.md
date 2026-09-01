@@ -71,7 +71,8 @@ sistema-produ-o/
     ├── extensor-sem-tipocaixa.sql  # remove tipo_caixa do extensor
     ├── tam-texto.sql          # tam (grampeadeira) numeric -> text ("8m")
     ├── tamanho-gancho.sql     # + tipos 'tamanho' e 'gancho' em config_items
-    └── metas-tipo-livre.sql   # metas.tipo passa a aceitar texto livre
+    ├── metas-tipo-livre.sql   # metas.tipo passa a aceitar texto livre
+    └── mangueiras-cordas-retorno.sql  # Tabelas mangueira/corda/retorno + tipo 'pacote'
 ```
 
 ### Como o front está organizado (`app.js`)
@@ -187,7 +188,8 @@ No **SQL Editor** do Supabase, rode os scripts da pasta `supabase/` **nesta orde
 2. `user-approval.sql` (perfis e aprovação)
 3. `operadores.sql`, `linhas.sql`, `turnos.sql`, `metas.sql` (tabelas estruturadas)
 4. As migrações incrementais: `turnos-almoco.sql`, `grampeadeira-almoco.sql`, `desconto-hora.sql`,
-   `extensor-sem-tipocaixa.sql`, `tam-texto.sql`, `tamanho-gancho.sql`, `metas-tipo-livre.sql`
+   `extensor-sem-tipocaixa.sql`, `tam-texto.sql`, `tamanho-gancho.sql`, `metas-tipo-livre.sql`,
+   `mangueiras-cordas-retorno.sql`
 5. `restrict-email-domain.sql` e `delete-user.sql`
 
 > Os scripts são **idempotentes** (usam `if not exists` / `if exists`) — dá pra rodar de novo sem quebrar.

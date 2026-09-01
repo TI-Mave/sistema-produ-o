@@ -23,12 +23,16 @@ const TIPO_FROM_KEY = {
   caixas: 'caixa',
   tamanhos: 'tamanho',
   ganchos: 'gancho',
+  pacotes: 'pacote',
 };
 
 const TABLE_FOR = {
   trancadeira: 'registros_trancadeira',
   grampeadeira: 'registros_grampeadeira',
   extensor: 'registros_extensor',
+  mangueira: 'registros_mangueira',
+  corda: 'registros_corda',
+  retorno: 'registros_retorno',
 };
 
 // ============================================================
@@ -96,6 +100,28 @@ const FROM_DB = {
     diametro: row.diametro,
     qtd: row.qtd,
   }),
+  mangueira: (row) => ({
+    id: row.id,
+    hora: row.hora,
+    data: row.data,
+    nome: row.nome,
+    qtd: row.qtd,
+  }),
+  corda: (row) => ({
+    id: row.id,
+    hora: row.hora,
+    data: row.data,
+    nome: row.nome,
+    qtd: row.qtd,
+  }),
+  retorno: (row) => ({
+    id: row.id,
+    hora: row.hora,
+    data: row.data,
+    tamanho: row.tamanho,
+    pacotes: row.pacotes || {},
+    total: row.total != null ? Number(row.total) : 0,
+  }),
 };
 
 const TO_DB = {
@@ -130,6 +156,25 @@ const TO_DB = {
     cor: r.cor,
     diametro: r.diametro,
     qtd: parseInt(r.qtd, 10),
+  }),
+  mangueira: (r, userId) => ({
+    user_id: userId || null,
+    data: r.data,
+    nome: r.nome,
+    qtd: parseInt(r.qtd, 10),
+  }),
+  corda: (r, userId) => ({
+    user_id: userId || null,
+    data: r.data,
+    nome: r.nome,
+    qtd: parseInt(r.qtd, 10),
+  }),
+  retorno: (r, userId) => ({
+    user_id: userId || null,
+    data: r.data,
+    tamanho: r.tamanho,
+    pacotes: r.pacotes || {},
+    total: r.total || 0,
   }),
 };
 
@@ -187,6 +232,7 @@ async function dbLoadConfig() {
     caixas:    byTipo('caixa').map(i => i.id),
     tamanhos:  byTipo('tamanho').map(i => i.id),
     ganchos:   byTipo('gancho').map(i => i.id),
+    pacotes:   byTipo('pacote').map(i => i.id),
   };
 
   return {
@@ -195,6 +241,7 @@ async function dbLoadConfig() {
     caixas:    byTipo('caixa').map(i => i.valor),
     tamanhos:  byTipo('tamanho').map(i => i.valor),
     ganchos:   byTipo('gancho').map(i => i.valor),
+    pacotes:   byTipo('pacote').map(i => i.valor),
     linhas:    linhasList,
     turnos:    turnosList,
     operadores: operadoresList,
@@ -222,16 +269,34 @@ async function fetchAllRows(table) {
   return all;
 }
 
+// Tabelas novas: se a migracao (supabase/mangueiras-cordas-retorno.sql) ainda
+// nao foi rodada, nao derruba o app inteiro — carrega vazio e avisa.
+async function fetchAllRowsOptional(table) {
+  try {
+    return await fetchAllRows(table);
+  } catch (e) {
+    console.warn(`[Mave] Tabela "${table}" indisponível. Rode supabase/mangueiras-cordas-retorno.sql no Supabase.`, e);
+    state.dbFaltandoMigracao = true;
+    return [];
+  }
+}
+
 async function dbLoadRegistros() {
-  const [tr, gr, ex] = await Promise.all([
+  const [tr, gr, ex, ma, co, re] = await Promise.all([
     fetchAllRows('registros_trancadeira'),
     fetchAllRows('registros_grampeadeira'),
     fetchAllRows('registros_extensor'),
+    fetchAllRowsOptional('registros_mangueira'),
+    fetchAllRowsOptional('registros_corda'),
+    fetchAllRowsOptional('registros_retorno'),
   ]);
   return {
     trancadeira:  tr.map(FROM_DB.trancadeira),
     grampeadeira: gr.map(FROM_DB.grampeadeira),
     extensor:     ex.map(FROM_DB.extensor),
+    mangueira:    ma.map(FROM_DB.mangueira),
+    corda:        co.map(FROM_DB.corda),
+    retorno:      re.map(FROM_DB.retorno),
   };
 }
 
@@ -257,21 +322,34 @@ function toggleTheme() { setTheme(getTheme() === 'dark' ? 'light' : 'dark'); }
 // ============================================================
 // ESTADO
 // ============================================================
+function emptyRegistros() {
+  return { trancadeira: [], grampeadeira: [], extensor: [], mangueira: [], corda: [], retorno: [] };
+}
+function emptyEditing() {
+  return { trancadeira: null, grampeadeira: null, extensor: null, mangueira: null, corda: null, retorno: null };
+}
+
 const state = {
-  config: { cores: [], diametros: [], caixas: [], tamanhos: [], ganchos: [], linhas: [], turnos: [], operadores: [], metas: [] },
-  configIds: { diametros: [], caixas: [], tamanhos: [], ganchos: [] },
+  config: { cores: [], diametros: [], caixas: [], tamanhos: [], ganchos: [], pacotes: [], linhas: [], turnos: [], operadores: [], metas: [] },
+  configIds: { diametros: [], caixas: [], tamanhos: [], ganchos: [], pacotes: [] },
   email: null,
   profile: null,
   recovering: false,
-  registros: { trancadeira: [], grampeadeira: [], extensor: [] },
-  editing: { trancadeira: null, grampeadeira: null, extensor: null },
-  pagina: { trancadeira: 1, grampeadeira: 1, extensor: 1 },
+  dbFaltandoMigracao: false,
+  registros: emptyRegistros(),
+  editing: emptyEditing(),
+  pagina: { trancadeira: 1, grampeadeira: 1, extensor: 1, mangueira: 1, corda: 1, retorno: 1 },
   filtros: {
     trancadeira: { de: '', ate: '', operador: '', tipoCaixa: '', linha: '', cor: '', diametro: '' },
     grampeadeira: { de: '', ate: '', operador: '' },
     extensor:    { de: '', ate: '', operador: '' },
+    mangueira:   { de: '', ate: '', nome: '' },
+    corda:       { de: '', ate: '', nome: '' },
+    retorno:     { de: '', ate: '', tamanho: '' },
   },
   metaFiltros: { tipo: '', ref: '' },
+  opFiltro: { busca: '', funcao: '' },
+  opPagina: 1,
 };
 
 // ============================================================
@@ -631,8 +709,8 @@ async function doLogout() {
   if (sb) await sb.auth.signOut();
   state.email = null;
   state.profile = null;
-  state.registros = { trancadeira: [], grampeadeira: [], extensor: [] };
-  state.editing = { trancadeira: null, grampeadeira: null, extensor: null };
+  state.registros = emptyRegistros();
+  state.editing = emptyEditing();
   setUserChrome(null);
   loginForm.reset();
   alertBox.classList.remove('show');
@@ -676,7 +754,7 @@ function applyFilter(items, filtro) {
   const de = filtro.de || null;
   const ate = filtro.ate || null;
   // Campos de igualdade (valor exato): mesma chave no filtro e no registro.
-  const EQ = ['operador', 'tipoCaixa', 'linha', 'cor', 'diametro'];
+  const EQ = ['operador', 'tipoCaixa', 'linha', 'cor', 'diametro', 'nome', 'tamanho'];
   const active = EQ.filter(f => filtro[f]);
   if (!de && !ate && active.length === 0) return items;
   return items.filter(r => {
@@ -708,8 +786,7 @@ function setExportButton(kind, count) {
   const clear = document.querySelector(`.btn-clear-filter[data-kind="${kind}"]`);
   if (clear) {
     const f = state.filtros[kind];
-    const hasAny = f.de || f.ate || f.operador || f.tipoCaixa || f.linha || f.cor || f.diametro;
-    clear.disabled = !hasAny;
+    clear.disabled = !Object.values(f).some(Boolean);
   }
 }
 
@@ -733,6 +810,9 @@ const CSV_HEADERS = {
   grampeadeira: ['Hora reg.', 'Nº O.P.', 'Data', 'Início', 'Fim', 'Operador', 'Qtd', 'Tamanho', 'Gancho',
                  'HE', 'HE Início', 'HE Fim', 'HE Tamanho', 'HE Qtd', 'HE Gancho'],
   extensor: ['Hora reg.', 'Data', 'Cor', 'Diâmetro (mm)', 'Quantidade'],
+  mangueira: ['Hora reg.', 'Data', 'Nome', 'Quantidade'],
+  corda: ['Hora reg.', 'Data', 'Nome', 'Quantidade'],
+  retorno: ['Hora reg.', 'Data', 'Tamanho', 'Pacotes', 'Total'],
 };
 
 function csvRow(kind, r) {
@@ -749,6 +829,12 @@ function csvRow(kind, r) {
   }
   if (kind === 'extensor') {
     return [r.hora, r.data, r.cor, fmtNum(r.diametro), r.qtd];
+  }
+  if (kind === 'mangueira' || kind === 'corda') {
+    return [r.hora, r.data, r.nome, r.qtd];
+  }
+  if (kind === 'retorno') {
+    return [r.hora, r.data, r.tamanho, pacotesSummary(r.pacotes), fmtNum(r.total)];
   }
   return [];
 }
@@ -840,6 +926,9 @@ const EXTRA_FILTERS = {
     { key: 'cor', label: 'Cor' },
     { key: 'diametro', label: 'Diâmetro' },
   ],
+  mangueira: [{ key: 'nome', label: 'Nome' }],
+  corda: [{ key: 'nome', label: 'Nome' }],
+  retorno: [{ key: 'tamanho', label: 'Tamanho' }],
 };
 // Fonte das opcoes de cada filtro (le da config atual).
 const FILTER_OPTIONS = {
@@ -848,6 +937,8 @@ const FILTER_OPTIONS = {
   linha:     () => (state.config.linhas || []).map(l => l.nome),
   cor:       () => (state.config.cores || []).map(c => c.nome),
   diametro:  () => state.config.diametros || [],
+  nome:      () => apenadosNomes(),
+  tamanho:   () => state.config.tamanhos || [],
 };
 
 function renderFilterSelects() {
@@ -925,10 +1016,96 @@ function renderDropdowns() {
   fillSelect('g-he-gancho', cfg.ganchos || []);
   fillSelect('e-cor', corNomes);
   fillSelect('e-diametro', cfg.diametros);
+  fillSelect('m-nome', apenadosNomes());
+  fillSelect('c-nome', apenadosNomes());
+  fillSelect('r-tamanho', cfg.tamanhos || []);
+  renderRetornoPacoteFields();
   document.querySelectorAll('.gi-tam').forEach(sel => fillSelectEl(sel, cfg.tamanhos || []));
   renderFilterSelects();
   populateOpTurnoSelect();
   populateMetaRefsDatalist();
+}
+
+// ============================================================
+// APENADOS (operadores com função "Apenado") + PACOTES DO RETORNO
+// ============================================================
+function isApenado(op) {
+  return normForCompare(op && op.funcao) === 'apenado';
+}
+function apenadosNomes() {
+  return (state.config.operadores || []).filter(isApenado).map(o => o.nome);
+}
+
+// Resumo legivel do jsonb de pacotes: { "PCT 10": 3 } -> "PCT 10: 3"
+function pacotesSummary(pacotes) {
+  const obj = pacotes || {};
+  return Object.keys(obj).map(k => `${k}: ${obj[k]}`).join(' · ');
+}
+
+// Multiplicador do pacote: extrai o primeiro numero do nome ("PCT 10" -> 10).
+// Sem numero no nome, conta 1 unidade por pacote.
+function pacoteMultiplier(label) {
+  const m = String(label).match(/(\d+(?:[.,]\d+)?)/);
+  return m ? parseFloat(m[1].replace(',', '.')) : 1;
+}
+function retornoTotal(pacotes) {
+  return Object.entries(pacotes || {}).reduce(
+    (s, [label, qtd]) => s + pacoteMultiplier(label) * (parseInt(qtd, 10) || 0), 0);
+}
+
+function currentRetornoPacoteValues() {
+  const out = {};
+  document.querySelectorAll('#r-pacotes .r-pacote-qtd').forEach(inp => {
+    if (inp.value) out[inp.dataset.pacote] = inp.value;
+  });
+  return out;
+}
+
+// Um input numerico por tipo de pacote configurado. `values` preenche os
+// campos (edicao de registro); sem `values`, preserva o que ja foi digitado.
+function renderRetornoPacoteFields(values) {
+  const container = document.getElementById('r-pacotes');
+  if (!container) return;
+  if (values === undefined) values = currentRetornoPacoteValues();
+  const labels = [...(state.config.pacotes || [])];
+  // Mantem pacotes do registro em edicao que ja sairam da config
+  for (const k of Object.keys(values || {})) {
+    if (!labels.includes(k)) labels.push(k);
+  }
+  container.innerHTML = '';
+  if (labels.length === 0) {
+    const div = document.createElement('div');
+    div.className = 'empty-state';
+    div.style.padding = '8px';
+    div.textContent = 'Nenhum tipo de pacote cadastrado. Adicione em Configurações → Listas de referência → Pacotes.';
+    container.appendChild(div);
+    return;
+  }
+  for (const label of labels) {
+    const field = document.createElement('div');
+    field.className = 'field';
+    const lab = document.createElement('label');
+    lab.textContent = label;
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.min = '0';
+    inp.placeholder = '0';
+    inp.className = 'r-pacote-qtd';
+    inp.dataset.pacote = label;
+    if (values && values[label] != null && values[label] !== '') inp.value = values[label];
+    field.appendChild(lab);
+    field.appendChild(inp);
+    container.appendChild(field);
+  }
+}
+
+function collectRetornoPacotes() {
+  const out = {};
+  document.querySelectorAll('#r-pacotes .r-pacote-qtd').forEach(inp => {
+    const qtd = parseInt(inp.value, 10);
+    if (Number.isFinite(qtd) && qtd > 0) out[inp.dataset.pacote] = qtd;
+  });
+  return out;
 }
 
 // ============================================================
@@ -940,6 +1117,7 @@ const CONFIG_LISTS = [
   { listId: 'list-caixas',     key: 'caixas',     isCor: false, inputId: 'input-caixa' },
   { listId: 'list-tamanhos',   key: 'tamanhos',   isCor: false, inputId: 'input-tamanho' },
   { listId: 'list-ganchos',    key: 'ganchos',    isCor: false, inputId: 'input-gancho' },
+  { listId: 'list-pacotes',    key: 'pacotes',    isCor: false, inputId: 'input-pacote' },
 ];
 const metaForListId = (id) => CONFIG_LISTS.find(m => m.listId === id);
 
@@ -1160,16 +1338,69 @@ function populateOpTurnoSelect() {
   if (previous && [...sel.options].some(o => o.value === previous)) sel.value = previous;
 }
 
+const OP_PAGE_SIZE = 25;
+
+function renderOpFuncaoFilter(allOps, current) {
+  const sel = document.getElementById('op-filtro-funcao');
+  if (!sel) return;
+  const values = [...new Set(allOps.map(o => o.funcao).filter(Boolean))];
+  sel.innerHTML = '';
+  const all = document.createElement('option');
+  all.value = '';
+  all.textContent = 'Todas';
+  sel.appendChild(all);
+  for (const v of values) {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = v;
+    sel.appendChild(o);
+  }
+  if (current && ![...sel.options].some(o => o.value === current)) {
+    const o = document.createElement('option');
+    o.value = current;
+    o.textContent = current + ' (removido)';
+    sel.appendChild(o);
+  }
+  sel.value = current || '';
+}
+
 function renderOperadoresTable() {
   const tbody = document.getElementById('tbody-operadores');
   if (!tbody) return;
-  const ops = state.config.operadores || [];
+  const all = state.config.operadores || [];
+  const f = state.opFiltro || { busca: '', funcao: '' };
+  renderOpFuncaoFilter(all, f.funcao);
+  const limpar = document.getElementById('op-filtro-limpar');
+  if (limpar) limpar.disabled = !(f.busca || f.funcao);
+
+  const busca = normForCompare(f.busca);
+  const ops = all.filter(op => {
+    if (f.funcao && normForCompare(op.funcao) !== normForCompare(f.funcao)) return false;
+    if (busca) {
+      const alvo = normForCompare(`${op.nome} ${op.matricula || ''} ${op.funcao || ''}`);
+      if (!alvo.includes(busca)) return false;
+    }
+    return true;
+  });
+
   if (ops.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Nenhum operador cadastrado.</td></tr>';
+    tbody.innerHTML = all.length === 0
+      ? '<tr><td colspan="4" class="empty-state">Nenhum operador cadastrado.</td></tr>'
+      : '<tr><td colspan="4" class="empty-state">Nenhum operador corresponde ao filtro.</td></tr>';
+    renderPaginationBar('tbody-operadores', { page: 1, totalPages: 0, totalItems: 0, start: 0, shown: 0, onGo: () => {} });
     return;
   }
+
+  const totalPages = Math.ceil(ops.length / OP_PAGE_SIZE);
+  let page = state.opPagina || 1;
+  if (page > totalPages) page = totalPages;
+  if (page < 1) page = 1;
+  state.opPagina = page;
+  const start = (page - 1) * OP_PAGE_SIZE;
+  const pageOps = ops.slice(start, start + OP_PAGE_SIZE);
+
   tbody.innerHTML = '';
-  ops.forEach((op) => {
+  pageOps.forEach((op) => {
     const tr = document.createElement('tr');
     tr.dataset.id = op.id;
     tr.innerHTML =
@@ -1182,7 +1413,35 @@ function renderOperadoresTable() {
   tbody.querySelectorAll('.op-remove').forEach(btn => {
     btn.onclick = () => removeOperador(btn.closest('tr').dataset.id);
   });
+  renderPaginationBar('tbody-operadores', {
+    page, totalPages, totalItems: ops.length, start, shown: pageOps.length,
+    noun: 'operadores',
+    onGo: (p) => {
+      state.opPagina = Math.min(Math.max(1, p), totalPages);
+      renderOperadoresTable();
+    },
+  });
 }
+
+const opFiltroBusca = document.getElementById('op-filtro-busca');
+if (opFiltroBusca) opFiltroBusca.addEventListener('input', () => {
+  state.opFiltro.busca = opFiltroBusca.value.trim();
+  state.opPagina = 1;
+  renderOperadoresTable();
+});
+const opFiltroFuncao = document.getElementById('op-filtro-funcao');
+if (opFiltroFuncao) opFiltroFuncao.addEventListener('change', () => {
+  state.opFiltro.funcao = opFiltroFuncao.value;
+  state.opPagina = 1;
+  renderOperadoresTable();
+});
+const opFiltroLimpar = document.getElementById('op-filtro-limpar');
+if (opFiltroLimpar) opFiltroLimpar.addEventListener('click', () => {
+  state.opFiltro = { busca: '', funcao: '' };
+  state.opPagina = 1;
+  if (opFiltroBusca) opFiltroBusca.value = '';
+  renderOperadoresTable();
+});
 
 async function addOperadorFromForm() {
   if (!sb) return;
@@ -1688,6 +1947,43 @@ const TABLE_META = {
       <td>${escapeHtml(r.diametro)} mm</td>
       <td>${escapeHtml(r.qtd)}</td>`,
   },
+  mangueira: {
+    tbodyId: 'tbody-mangueira',
+    countId: 'count-mangueira',
+    formId: 'form-mangueira',
+    tabName: 'mangueiras',
+    colspan: 5,
+    rowCells: (r) => `
+      <td>${escapeHtml(r.hora)}</td>
+      <td>${escapeHtml(r.data)}</td>
+      <td>${escapeHtml(r.nome)}</td>
+      <td>${escapeHtml(r.qtd)}</td>`,
+  },
+  corda: {
+    tbodyId: 'tbody-corda',
+    countId: 'count-corda',
+    formId: 'form-corda',
+    tabName: 'cordas',
+    colspan: 5,
+    rowCells: (r) => `
+      <td>${escapeHtml(r.hora)}</td>
+      <td>${escapeHtml(r.data)}</td>
+      <td>${escapeHtml(r.nome)}</td>
+      <td>${escapeHtml(r.qtd)}</td>`,
+  },
+  retorno: {
+    tbodyId: 'tbody-retorno',
+    countId: 'count-retorno',
+    formId: 'form-retorno',
+    tabName: 'retorno',
+    colspan: 6,
+    rowCells: (r) => `
+      <td>${escapeHtml(r.hora)}</td>
+      <td>${escapeHtml(r.data)}</td>
+      <td>${escapeHtml(r.tamanho)}</td>
+      <td>${escapeHtml(pacotesSummary(r.pacotes) || '—')}</td>
+      <td>${escapeHtml(String(r.total != null ? r.total : 0))}</td>`,
+  },
 };
 
 const EMPTY_MSG = 'Nenhum registro hoje. Use o formulário acima.';
@@ -1734,10 +2030,9 @@ function renderTable(kind) {
   renderPagination(kind, page, totalPages, ordered.length, start, pageItems.length);
 }
 
-// Barra de paginacao abaixo da tabela. Aparece so quando ha mais de 1 pagina.
-function renderPagination(kind, page, totalPages, totalItems, start, shown) {
-  const meta = TABLE_META[kind];
-  const tbody = document.getElementById(meta.tbodyId);
+// Barra de paginacao generica abaixo de uma tabela. Aparece so com 2+ paginas.
+function renderPaginationBar(tbodyId, { page, totalPages, totalItems, start, shown, noun = 'registros', onGo }) {
+  const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
   const wrapper = tbody.closest('.table-wrapper');
   const card = wrapper ? wrapper.closest('.card') : null;
@@ -1756,7 +2051,7 @@ function renderPagination(kind, page, totalPages, totalItems, start, shown) {
   const from = start + 1;
   const to = start + shown;
   pag.innerHTML = `
-    <span class="pagination-info">${from}–${to} de ${totalItems} registros</span>
+    <span class="pagination-info">${from}–${to} de ${totalItems} ${noun}</span>
     <div class="pagination-controls">
       <button type="button" class="pg-btn pg-first" ${page === 1 ? 'disabled' : ''}>«</button>
       <button type="button" class="pg-btn pg-prev" ${page === 1 ? 'disabled' : ''}>‹ Anterior</button>
@@ -1765,10 +2060,17 @@ function renderPagination(kind, page, totalPages, totalItems, start, shown) {
       <button type="button" class="pg-btn pg-last" ${page === totalPages ? 'disabled' : ''}>»</button>
     </div>
   `;
-  pag.querySelector('.pg-first').onclick = () => goToPage(kind, 1);
-  pag.querySelector('.pg-prev').onclick = () => goToPage(kind, page - 1);
-  pag.querySelector('.pg-next').onclick = () => goToPage(kind, page + 1);
-  pag.querySelector('.pg-last').onclick = () => goToPage(kind, totalPages);
+  pag.querySelector('.pg-first').onclick = () => onGo(1);
+  pag.querySelector('.pg-prev').onclick = () => onGo(page - 1);
+  pag.querySelector('.pg-next').onclick = () => onGo(page + 1);
+  pag.querySelector('.pg-last').onclick = () => onGo(totalPages);
+}
+
+function renderPagination(kind, page, totalPages, totalItems, start, shown) {
+  renderPaginationBar(TABLE_META[kind].tbodyId, {
+    page, totalPages, totalItems, start, shown,
+    onGo: (p) => goToPage(kind, p),
+  });
 }
 
 function goToPage(kind, page) {
@@ -1782,9 +2084,7 @@ function goToPage(kind, page) {
 }
 
 function renderAllTables() {
-  renderTable('trancadeira');
-  renderTable('grampeadeira');
-  renderTable('extensor');
+  for (const kind of Object.keys(TABLE_META)) renderTable(kind);
 }
 
 function findRegistro(kind, id) {
@@ -1795,11 +2095,13 @@ async function removeRegistro(kind, id) {
   if (!sb) return;
   const r = findRegistro(kind, id);
   if (!r) return;
-  const detalhe = (kind === 'grampeadeira')
-    ? `da grampeadeira (${r.data} · ${r.operador || '—'} · ${r.qtd} un)`
-    : (kind === 'trancadeira')
-      ? `da trançadeira (${r.data} · ${r.cor || '—'} · ${r.peso}kg)`
-      : `do extensor (${r.data} · ${r.cor || '—'} · ${r.qtd} un)`;
+  let detalhe;
+  if (kind === 'grampeadeira')      detalhe = `da grampeadeira (${r.data} · ${r.operador || '—'} · ${r.qtd} un)`;
+  else if (kind === 'trancadeira')  detalhe = `da trançadeira (${r.data} · ${r.cor || '—'} · ${r.peso}kg)`;
+  else if (kind === 'mangueira')    detalhe = `de mangueiras (${r.data} · ${r.nome || '—'} · ${r.qtd} un)`;
+  else if (kind === 'corda')        detalhe = `de cordas (${r.data} · ${r.nome || '—'} · ${r.qtd} un)`;
+  else if (kind === 'retorno')      detalhe = `do retorno industrializado (${r.data} · tam. ${r.tamanho || '—'} · ${r.total || 0} un)`;
+  else                              detalhe = `do extensor (${r.data} · ${r.cor || '—'} · ${r.qtd} un)`;
   if (!confirm(`Remover o registro ${detalhe}? Essa ação não pode ser desfeita.`)) return;
   const { error } = await sb.from(TABLE_FOR[kind]).delete().eq('id', id);
   if (error) { showToast('Erro ao remover: ' + error.message, 'error'); return; }
@@ -1962,6 +2264,17 @@ function fillFormFromRegistro(kind, r) {
     document.getElementById('e-cor').value = r.cor || '';
     document.getElementById('e-diametro').value = r.diametro || '';
     document.getElementById('e-qtd').value = r.qtd || '';
+  } else if (kind === 'mangueira' || kind === 'corda') {
+    const p = kind === 'mangueira' ? 'm' : 'c';
+    document.getElementById(p + '-data').value = r.data || todayISO();
+    fillSelect(p + '-nome', apenadosNomes(), r.nome);
+    document.getElementById(p + '-nome').value = r.nome || '';
+    document.getElementById(p + '-qtd').value = r.qtd || '';
+  } else if (kind === 'retorno') {
+    document.getElementById('r-data').value = r.data || todayISO();
+    fillSelect('r-tamanho', state.config.tamanhos || [], r.tamanho);
+    document.getElementById('r-tamanho').value = r.tamanho || '';
+    renderRetornoPacoteFields(r.pacotes || {});
   }
 }
 
@@ -2043,6 +2356,23 @@ function buildRegistroFromForm(kind) {
       qtd: document.getElementById('e-qtd').value,
     };
   }
+  if (kind === 'mangueira' || kind === 'corda') {
+    const p = kind === 'mangueira' ? 'm' : 'c';
+    return {
+      data: document.getElementById(p + '-data').value,
+      nome: document.getElementById(p + '-nome').value,
+      qtd: document.getElementById(p + '-qtd').value,
+    };
+  }
+  if (kind === 'retorno') {
+    const pacotes = collectRetornoPacotes();
+    return {
+      data: document.getElementById('r-data').value,
+      tamanho: document.getElementById('r-tamanho').value,
+      pacotes,
+      total: retornoTotal(pacotes),
+    };
+  }
   return {};
 }
 
@@ -2072,6 +2402,41 @@ async function submitRegistro(kind, form) {
     if (!document.getElementById('g-gancho').value) faltando.push('Gancho');
     if (faltando.length) {
       showToast('Selecione: ' + faltando.join(', ') + '. Se a lista estiver vazia, cadastre em Configurações.', 'error');
+      return;
+    }
+  }
+  if (kind === 'mangueira' || kind === 'corda') {
+    const p = kind === 'mangueira' ? 'm' : 'c';
+    if (!document.getElementById(p + '-data').value) {
+      showToast('Informe a data.', 'error');
+      return;
+    }
+    if (!document.getElementById(p + '-nome').value) {
+      showToast('Selecione o nome. Se a lista estiver vazia, cadastre operadores com função "Apenado" em Configurações.', 'error');
+      return;
+    }
+    const qtd = parseInt(document.getElementById(p + '-qtd').value, 10);
+    if (!Number.isFinite(qtd) || qtd <= 0) {
+      showToast('Informe uma quantidade válida.', 'error');
+      document.getElementById(p + '-qtd').focus();
+      return;
+    }
+  }
+  if (kind === 'retorno') {
+    if (!document.getElementById('r-data').value) {
+      showToast('Informe a data.', 'error');
+      return;
+    }
+    if (!document.getElementById('r-tamanho').value) {
+      showToast('Selecione o tamanho. Se a lista estiver vazia, cadastre em Configurações → Listas de referência → Tamanhos.', 'error');
+      return;
+    }
+    if (document.querySelectorAll('#r-pacotes .r-pacote-qtd').length === 0) {
+      showToast('Cadastre os tipos de pacote em Configurações → Listas de referência → Pacotes.', 'error');
+      return;
+    }
+    if (Object.keys(collectRetornoPacotes()).length === 0) {
+      showToast('Informe a quantidade de ao menos um pacote.', 'error');
       return;
     }
   }
@@ -2478,6 +2843,18 @@ document.getElementById('form-extensor').addEventListener('submit', (e) => {
   e.preventDefault();
   submitRegistro('extensor', e.target);
 });
+document.getElementById('form-mangueira').addEventListener('submit', (e) => {
+  e.preventDefault();
+  submitRegistro('mangueira', e.target);
+});
+document.getElementById('form-corda').addEventListener('submit', (e) => {
+  e.preventDefault();
+  submitRegistro('corda', e.target);
+});
+document.getElementById('form-retorno').addEventListener('submit', (e) => {
+  e.preventDefault();
+  submitRegistro('retorno', e.target);
+});
 
 // "Limpar" durante edicao tambem deve sair do modo edit
 for (const kind of Object.keys(TABLE_META)) {
@@ -2696,18 +3073,31 @@ function renderDashboard() {
   const tr = state.registros.trancadeira.filter(r => r.data === today);
   const gr = state.registros.grampeadeira.filter(r => r.data === today);
   const ex = state.registros.extensor.filter(r => r.data === today);
+  const ma = state.registros.mangueira.filter(r => r.data === today);
+  const co = state.registros.corda.filter(r => r.data === today);
+  const re = state.registros.retorno.filter(r => r.data === today);
 
   const trKg = tr.reduce((s, r) => s + (parseFloat(r.peso) || 0), 0);
   const grQtd = gr.reduce((s, r) => s + (parseInt(r.qtd, 10) || 0), 0)
               + gr.reduce((s, r) => s + (r.he && r.he_dados ? (parseInt(r.he_dados.qtd, 10) || 0) : 0), 0);
   const exQtd = ex.reduce((s, r) => s + (parseInt(r.qtd, 10) || 0), 0);
+  const maQtd = ma.reduce((s, r) => s + (parseInt(r.qtd, 10) || 0), 0);
+  const coQtd = co.reduce((s, r) => s + (parseInt(r.qtd, 10) || 0), 0);
+  const reQtd = re.reduce((s, r) => s + (parseFloat(r.total) || 0), 0);
 
+  const unidadesLabel = (n) => n + (n === 1 ? ' unidade produzida' : ' unidades produzidas');
   setText('kpi-trancadeira-count', tr.length);
   setText('kpi-trancadeira-sub', trKg.toFixed(2).replace('.', ',') + ' kg produzidos');
   setText('kpi-grampeadeira-count', gr.length);
-  setText('kpi-grampeadeira-sub', grQtd + (grQtd === 1 ? ' unidade produzida' : ' unidades produzidas'));
+  setText('kpi-grampeadeira-sub', unidadesLabel(grQtd));
   setText('kpi-extensor-count', ex.length);
-  setText('kpi-extensor-sub', exQtd + (exQtd === 1 ? ' unidade produzida' : ' unidades produzidas'));
+  setText('kpi-extensor-sub', unidadesLabel(exQtd));
+  setText('kpi-mangueira-count', ma.length);
+  setText('kpi-mangueira-sub', unidadesLabel(maQtd));
+  setText('kpi-corda-count', co.length);
+  setText('kpi-corda-sub', unidadesLabel(coQtd));
+  setText('kpi-retorno-count', re.length);
+  setText('kpi-retorno-sub', unidadesLabel(reQtd));
 
   const greeting = document.getElementById('dashboard-greeting');
   const subtitle = document.getElementById('dashboard-subtitle');
@@ -2717,7 +3107,7 @@ function renderDashboard() {
     greeting.textContent = `Olá, ${first[0].toUpperCase() + first.slice(1)}`;
   }
   if (subtitle) {
-    const totalHoje = tr.length + gr.length + ex.length;
+    const totalHoje = tr.length + gr.length + ex.length + ma.length + co.length + re.length;
     subtitle.textContent = totalHoje === 0
       ? 'Nenhum registro hoje ainda. Vamos começar?'
       : `${totalHoje} ${totalHoje === 1 ? 'registro' : 'registros'} hoje em todas as estações.`;
@@ -2805,12 +3195,17 @@ const STATION_LABEL = {
   trancadeira: 'Trançadeira',
   grampeadeira: 'Grampeadeira',
   extensor: 'Extensor',
+  mangueira: 'Mangueira',
+  corda: 'Corda',
+  retorno: 'Retorno Ind.',
 };
 
 function recentDetail(kind, r) {
   if (kind === 'trancadeira') return `${r.tipoCaixa || '—'} · ${r.linha || '—'} · ${r.cor || '—'} · ${r.peso || '0'} kg`;
   if (kind === 'grampeadeira') return `${r.op || '—'} · ${r.operador || '—'} · ${r.qtd || '0'} un${r.he ? ' (+ HE)' : ''}`;
   if (kind === 'extensor')    return `${r.cor || '—'} · ${r.diametro || '—'}mm · ${r.qtd || '0'} un`;
+  if (kind === 'mangueira' || kind === 'corda') return `${r.nome || '—'} · ${r.qtd || '0'} un`;
+  if (kind === 'retorno')     return `tam. ${r.tamanho || '—'} · ${pacotesSummary(r.pacotes) || '—'} · ${r.total || 0} un`;
   return '';
 }
 
@@ -2819,9 +3214,9 @@ function renderRecentActivity() {
   const badge = document.getElementById('recent-badge');
   if (!tbody) return;
   const all = [];
-  for (const r of state.registros.trancadeira) all.push({ kind: 'trancadeira', r });
-  for (const r of state.registros.grampeadeira) all.push({ kind: 'grampeadeira', r });
-  for (const r of state.registros.extensor) all.push({ kind: 'extensor', r });
+  for (const kind of Object.keys(TABLE_META)) {
+    for (const r of state.registros[kind]) all.push({ kind, r });
+  }
   all.sort((a, b) => {
     const ka = (a.r.data || '') + ' ' + (a.r.hora || '');
     const kb = (b.r.data || '') + ' ' + (b.r.hora || '');
@@ -2897,14 +3292,18 @@ async function enterApp(email) {
   if (adminTab) adminTab.style.display = profile.role === 'admin' ? '' : 'none';
 
   try {
+    state.dbFaltandoMigracao = false;
     const [cfg, regs] = await Promise.all([dbLoadConfig(), dbLoadRegistros()]);
     state.config = cfg;
     state.registros = regs;
-    state.editing = { trancadeira: null, grampeadeira: null, extensor: null };
+    state.editing = emptyEditing();
   } catch (e) {
     console.error('[Mave] Erro ao carregar dados:', e);
     showToast('Erro ao carregar dados: ' + (e && e.message ? e.message : e), 'error');
     return;
+  }
+  if (state.dbFaltandoMigracao) {
+    showToast('Mangueiras/Cordas/Retorno: rode supabase/mangueiras-cordas-retorno.sql no Supabase para ativar.', 'error');
   }
 
   renderDropdowns();
@@ -2921,6 +3320,32 @@ async function enterApp(email) {
   document.getElementById('t-data').value = t;
   document.getElementById('g-data').value = t;
   document.getElementById('e-data').value = t;
+  document.getElementById('m-data').value = t;
+  document.getElementById('c-data').value = t;
+  document.getElementById('r-data').value = t;
+}
+
+// ============================================================
+// SUB-ABAS DAS CONFIGURAÇÕES (uma seção por vez)
+// ============================================================
+function activateConfigSection(section) {
+  document.querySelectorAll('#config-subtabs .config-subtab').forEach(b => {
+    b.classList.toggle('active', b.dataset.section === section);
+  });
+  document.querySelectorAll('#panel-configuracoes .config-card[data-config-section]').forEach(c => {
+    c.style.display = c.dataset.configSection === section ? '' : 'none';
+  });
+}
+
+function setupConfigSubtabs() {
+  const nav = document.getElementById('config-subtabs');
+  if (!nav) return;
+  nav.addEventListener('click', (e) => {
+    const btn = e.target.closest('.config-subtab');
+    if (!btn) return;
+    activateConfigSection(btn.dataset.section);
+  });
+  activateConfigSection('listas');
 }
 
 async function bootstrap() {
@@ -2940,6 +3365,7 @@ async function bootstrap() {
   setupFormEditingUI();
   setupTableToolbar();
   setupDashboardKpiClicks();
+  setupConfigSubtabs();
 
   // Sincroniza UI quando o auth muda (ex.: logout em outra aba)
   sb.auth.onAuthStateChange((event, session) => {
@@ -2951,8 +3377,8 @@ async function bootstrap() {
     }
     if (event === 'SIGNED_OUT' && state.email) {
       state.email = null;
-      state.registros = { trancadeira: [], grampeadeira: [], extensor: [] };
-      state.editing = { trancadeira: null, grampeadeira: null, extensor: null };
+      state.registros = emptyRegistros();
+      state.editing = emptyEditing();
       setUserChrome(null);
       showLogin();
     }
