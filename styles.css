@@ -1076,9 +1076,21 @@ tbody tr:hover { background: var(--surface-2); }
 }
 .td-actions button + button { margin-left: 10px; }
 .td-actions .mt-edit:hover,
-.td-actions .mt-cancel:hover { background: var(--surface-2); border-color: var(--doca-orange); color: var(--doca-orange); }
-.td-actions .mt-save { color: var(--doca-orange); border-color: var(--doca-orange); }
-.td-actions .mt-save:hover { background: var(--doca-orange-soft); }
+.td-actions .mt-cancel:hover,
+.td-actions .ln-edit:hover,
+.td-actions .ln-cancel:hover,
+.td-actions .tn-edit:hover,
+.td-actions .tn-cancel:hover,
+.td-actions .op-edit:hover,
+.td-actions .op-cancel:hover { background: var(--surface-2); border-color: var(--doca-orange); color: var(--doca-orange); }
+.td-actions .mt-save,
+.td-actions .ln-save,
+.td-actions .tn-save,
+.td-actions .op-save { color: var(--doca-orange); border-color: var(--doca-orange); }
+.td-actions .mt-save:hover,
+.td-actions .ln-save:hover,
+.td-actions .tn-save:hover,
+.td-actions .op-save:hover { background: var(--doca-orange-soft); }
 .td-actions .mt-remove,
 .td-actions .op-remove,
 .td-actions .ln-remove,
@@ -1087,6 +1099,20 @@ tbody tr:hover { background: var(--surface-2); }
 .td-actions .op-remove:hover,
 .td-actions .ln-remove:hover,
 .td-actions .tn-remove:hover { background: var(--danger-bg); }
+/* Inputs de edição inline nas linhas das tabelas (metas, linhas, turnos, operadores) */
+tbody td > input {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 90px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--doca-orange);
+  border-radius: 6px;
+  outline: none;
+}
 /* ========== CARD EM MODO EDIÇÃO ========== */
 .card.editing {
   border-color: var(--doca-orange);

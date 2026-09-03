@@ -41,10 +41,11 @@ const TABLE_FOR = {
 function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
 function todayISO() { return new Date().toISOString().split('T')[0]; }
 function nowTime() { return new Date().toTimeString().slice(0, 5); }
+// Escapa tambem aspas: seguro para usar dentro de atributos value="..."
 function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = String(str ?? '');
-  return div.innerHTML;
+  return String(str ?? '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
 }
 
 function traduzirErroAuth(err) {
@@ -1407,11 +1408,17 @@ function renderOperadoresTable() {
       `<td>${escapeHtml(op.nome)}</td>` +
       `<td>${escapeHtml(op.matricula || '—')}</td>` +
       `<td>${escapeHtml(op.funcao || '—')}</td>` +
-      `<td class="td-actions"><button class="op-remove" type="button">Remover</button></td>`;
+      `<td class="td-actions">` +
+        `<button class="op-edit" type="button">Editar</button> ` +
+        `<button class="op-remove" type="button">Remover</button>` +
+      `</td>`;
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.op-remove').forEach(btn => {
     btn.onclick = () => removeOperador(btn.closest('tr').dataset.id);
+  });
+  tbody.querySelectorAll('.op-edit').forEach(btn => {
+    btn.onclick = () => startOperadorEdit(btn.closest('tr').dataset.id);
   });
   renderPaginationBar('tbody-operadores', {
     page, totalPages, totalItems: ops.length, start, shown: pageOps.length,
@@ -1442,6 +1449,77 @@ if (opFiltroLimpar) opFiltroLimpar.addEventListener('click', () => {
   if (opFiltroBusca) opFiltroBusca.value = '';
   renderOperadoresTable();
 });
+
+function startOperadorEdit(id) {
+  const op = (state.config.operadores || []).find(x => x.id === id);
+  if (!op) return;
+  const tr = document.querySelector(`#tbody-operadores tr[data-id="${id}"]`);
+  if (!tr) return;
+  tr.innerHTML = `
+    <td><input type="text" class="op-edit-nome" value="${escapeHtml(op.nome)}"></td>
+    <td><input type="text" class="op-edit-matricula" inputmode="numeric" value="${escapeHtml(op.matricula || '')}"></td>
+    <td><input type="text" class="op-edit-funcao" list="datalist-funcoes" autocomplete="off" value="${escapeHtml(op.funcao || '')}"></td>
+    <td class="td-actions">
+      <button class="op-save" type="button">Salvar</button>
+      <button class="op-cancel" type="button">Cancelar</button>
+    </td>
+  `;
+  const matInput = tr.querySelector('.op-edit-matricula');
+  matInput.addEventListener('input', () => {
+    const d = matInput.value.replace(/\D+/g, '');
+    if (d !== matInput.value) matInput.value = d;
+  });
+  tr.querySelector('.op-save').onclick = () => saveOperadorEdit(id);
+  tr.querySelector('.op-cancel').onclick = () => renderOperadoresTable();
+  tr.querySelector('.op-edit-nome').focus();
+}
+
+async function saveOperadorEdit(id) {
+  if (!sb) return;
+  const tr = document.querySelector(`#tbody-operadores tr[data-id="${id}"]`);
+  if (!tr) return;
+  const nome = tr.querySelector('.op-edit-nome').value.trim();
+  const matricula = tr.querySelector('.op-edit-matricula').value.replace(/\D+/g, '').trim() || null;
+  const funcao = tr.querySelector('.op-edit-funcao').value.trim() || null;
+  if (!nome) { showToast('Informe o nome do operador.', 'error'); return; }
+
+  const nomeNorm = normForCompare(nome);
+  const dupNome = (state.config.operadores || []).find(o => o.id !== id && normForCompare(o.nome) === nomeNorm);
+  if (dupNome) {
+    showToast(`Já existe um operador chamado "${nome}".`, 'error');
+    return;
+  }
+  if (matricula) {
+    const matNorm = normForCompare(matricula);
+    const dupMat = (state.config.operadores || []).find(o => o.id !== id && o.matricula && normForCompare(o.matricula) === matNorm);
+    if (dupMat) {
+      showToast(`Já existe um operador com a matrícula "${matricula}" (${dupMat.nome}).`, 'error');
+      return;
+    }
+  }
+
+  const { data, error } = await sb.from('operadores')
+    .update({ nome, matricula, funcao })
+    .eq('id', id)
+    .select().single();
+  if (error) { showToast('Erro ao atualizar operador: ' + error.message, 'error'); return; }
+
+  const idx = state.config.operadores.findIndex(x => x.id === id);
+  if (idx >= 0) {
+    state.config.operadores[idx] = {
+      id: data.id,
+      nome: data.nome,
+      matricula: data.matricula || '',
+      funcao: data.funcao || '',
+      turno: data.turno || '',
+      capacidade: data.capacidade_produtiva != null ? Number(data.capacidade_produtiva) : null,
+    };
+  }
+  renderOperadoresTable();
+  renderDropdowns();
+  renderDashboard();
+  showToast('Operador atualizado.');
+}
 
 async function addOperadorFromForm() {
   if (!sb) return;
@@ -1535,12 +1613,73 @@ function renderLinhasTable() {
     tr.innerHTML =
       `<td>${escapeHtml(l.nome)}</td>` +
       `<td>${l.capacidade != null ? escapeHtml(String(l.capacidade)) : '—'}</td>` +
-      `<td class="td-actions"><button class="ln-remove" type="button">Remover</button></td>`;
+      `<td class="td-actions">` +
+        `<button class="ln-edit" type="button">Editar</button> ` +
+        `<button class="ln-remove" type="button">Remover</button>` +
+      `</td>`;
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.ln-remove').forEach(btn => {
     btn.onclick = () => removeLinha(btn.closest('tr').dataset.id);
   });
+  tbody.querySelectorAll('.ln-edit').forEach(btn => {
+    btn.onclick = () => startLinhaEdit(btn.closest('tr').dataset.id);
+  });
+}
+
+function startLinhaEdit(id) {
+  const l = (state.config.linhas || []).find(x => x.id === id);
+  if (!l) return;
+  const tr = document.querySelector(`#tbody-linhas tr[data-id="${id}"]`);
+  if (!tr) return;
+  tr.innerHTML = `
+    <td><input type="text" class="ln-edit-nome" value="${escapeHtml(l.nome)}"></td>
+    <td><input type="number" step="0.01" min="0.01" class="ln-edit-capacidade" value="${escapeHtml(String(l.capacidade != null ? l.capacidade : ''))}"></td>
+    <td class="td-actions">
+      <button class="ln-save" type="button">Salvar</button>
+      <button class="ln-cancel" type="button">Cancelar</button>
+    </td>
+  `;
+  tr.querySelector('.ln-save').onclick = () => saveLinhaEdit(id);
+  tr.querySelector('.ln-cancel').onclick = () => renderLinhasTable();
+  tr.querySelector('.ln-edit-nome').focus();
+}
+
+async function saveLinhaEdit(id) {
+  if (!sb) return;
+  const tr = document.querySelector(`#tbody-linhas tr[data-id="${id}"]`);
+  if (!tr) return;
+  const nome = tr.querySelector('.ln-edit-nome').value.trim();
+  const capRaw = tr.querySelector('.ln-edit-capacidade').value.trim();
+  const capacidade = capRaw ? parseFloat(capRaw) : NaN;
+  if (!nome) { showToast('Informe o nome da linha.', 'error'); return; }
+  if (!Number.isFinite(capacidade) || capacidade <= 0) {
+    showToast('Informe a capacidade produtiva da linha.', 'error');
+    return;
+  }
+  const nomeNorm = normForCompare(nome);
+  const dup = (state.config.linhas || []).find(l => l.id !== id && normForCompare(l.nome) === nomeNorm);
+  if (dup) {
+    showToast(`Já existe uma linha chamada "${nome}".`, 'error');
+    return;
+  }
+  const { data, error } = await sb.from('linhas')
+    .update({ nome, capacidade_produtiva: capacidade })
+    .eq('id', id)
+    .select().single();
+  if (error) { showToast('Erro ao atualizar linha: ' + error.message, 'error'); return; }
+  const idx = state.config.linhas.findIndex(x => x.id === id);
+  if (idx >= 0) {
+    state.config.linhas[idx] = {
+      id: data.id,
+      nome: data.nome,
+      capacidade: data.capacidade_produtiva != null ? Number(data.capacidade_produtiva) : null,
+    };
+  }
+  renderLinhasTable();
+  renderDropdowns();
+  renderDashboard();
+  showToast('Linha atualizada.');
 }
 
 async function addLinhaFromForm() {
@@ -1618,12 +1757,77 @@ function renderTurnosTable() {
       `<td>${escapeHtml(t.hf || '—')}</td>` +
       `<td>${escapeHtml(t.almoco_hi || '—')}</td>` +
       `<td>${escapeHtml(t.almoco_hf || '—')}</td>` +
-      `<td class="td-actions"><button class="tn-remove" type="button">Remover</button></td>`;
+      `<td class="td-actions">` +
+        `<button class="tn-edit" type="button">Editar</button> ` +
+        `<button class="tn-remove" type="button">Remover</button>` +
+      `</td>`;
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.tn-remove').forEach(btn => {
     btn.onclick = () => removeTurno(btn.closest('tr').dataset.id);
   });
+  tbody.querySelectorAll('.tn-edit').forEach(btn => {
+    btn.onclick = () => startTurnoEdit(btn.closest('tr').dataset.id);
+  });
+}
+
+function startTurnoEdit(id) {
+  const t = (state.config.turnos || []).find(x => x.id === id);
+  if (!t) return;
+  const tr = document.querySelector(`#tbody-turnos tr[data-id="${id}"]`);
+  if (!tr) return;
+  tr.innerHTML = `
+    <td><input type="text" class="tn-edit-nome" value="${escapeHtml(t.nome)}"></td>
+    <td><input type="time" class="tn-edit-hi" value="${escapeHtml(t.hi || '')}"></td>
+    <td><input type="time" class="tn-edit-hf" value="${escapeHtml(t.hf || '')}"></td>
+    <td><input type="time" class="tn-edit-alm-hi" value="${escapeHtml(t.almoco_hi || '')}"></td>
+    <td><input type="time" class="tn-edit-alm-hf" value="${escapeHtml(t.almoco_hf || '')}"></td>
+    <td class="td-actions">
+      <button class="tn-save" type="button">Salvar</button>
+      <button class="tn-cancel" type="button">Cancelar</button>
+    </td>
+  `;
+  tr.querySelector('.tn-save').onclick = () => saveTurnoEdit(id);
+  tr.querySelector('.tn-cancel').onclick = () => renderTurnosTable();
+  tr.querySelector('.tn-edit-nome').focus();
+}
+
+async function saveTurnoEdit(id) {
+  if (!sb) return;
+  const tr = document.querySelector(`#tbody-turnos tr[data-id="${id}"]`);
+  if (!tr) return;
+  const nome = tr.querySelector('.tn-edit-nome').value.trim();
+  if (!nome) { showToast('Informe o nome do turno.', 'error'); return; }
+  const hi = tr.querySelector('.tn-edit-hi').value || null;
+  const hf = tr.querySelector('.tn-edit-hf').value || null;
+  const almoco_hi = tr.querySelector('.tn-edit-alm-hi').value || null;
+  const almoco_hf = tr.querySelector('.tn-edit-alm-hf').value || null;
+  const nomeNorm = normForCompare(nome);
+  const dup = (state.config.turnos || []).find(t => t.id !== id && normForCompare(t.nome) === nomeNorm);
+  if (dup) {
+    showToast(`Já existe um turno chamado "${nome}".`, 'error');
+    return;
+  }
+  const { data, error } = await sb.from('turnos')
+    .update({ nome, hora_inicio: hi, hora_fim: hf, almoco_inicio: almoco_hi, almoco_fim: almoco_hf })
+    .eq('id', id)
+    .select().single();
+  if (error) { showToast('Erro ao atualizar turno: ' + error.message, 'error'); return; }
+  const idx = state.config.turnos.findIndex(x => x.id === id);
+  if (idx >= 0) {
+    state.config.turnos[idx] = {
+      id: data.id,
+      nome: data.nome,
+      hi: data.hora_inicio || '',
+      hf: data.hora_fim || '',
+      almoco_hi: data.almoco_inicio || '',
+      almoco_hf: data.almoco_fim || '',
+    };
+  }
+  renderTurnosTable();
+  renderDropdowns();
+  renderDashboard();
+  showToast('Turno atualizado.');
 }
 
 async function addTurnoFromForm() {
