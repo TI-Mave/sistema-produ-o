@@ -35,8 +35,8 @@ create table if not exists public.registros_corda (
 create index if not exists registros_corda_data_idx on public.registros_corda(data);
 
 -- ---------- Registros: Retorno Industrializado ----------
--- pacotes: jsonb { "PCT 10": 3, "PCT 50": 2 } — quantidade por tipo de pacote
--- total: unidades totais (multiplicador extraido do nome do pacote x qtd)
+-- pacotes: jsonb { "PCT 10": 1000, "PCT 50": 2000 } — unidades por tipo de pacote
+-- total: soma das unidades informadas em cada tipo de pacote
 create table if not exists public.registros_retorno (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete set null,

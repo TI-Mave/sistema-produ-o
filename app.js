@@ -1043,15 +1043,10 @@ function pacotesSummary(pacotes) {
   return Object.keys(obj).map(k => `${k}: ${obj[k]}`).join(' · ');
 }
 
-// Multiplicador do pacote: extrai o primeiro numero do nome ("PCT 10" -> 10).
-// Sem numero no nome, conta 1 unidade por pacote.
-function pacoteMultiplier(label) {
-  const m = String(label).match(/(\d+(?:[.,]\d+)?)/);
-  return m ? parseFloat(m[1].replace(',', '.')) : 1;
-}
+// Total do retorno: soma direta dos valores informados — os campos de cada
+// pacote ja recebem unidades totais, nao quantidade de pacotes.
 function retornoTotal(pacotes) {
-  return Object.entries(pacotes || {}).reduce(
-    (s, [label, qtd]) => s + pacoteMultiplier(label) * (parseInt(qtd, 10) || 0), 0);
+  return Object.values(pacotes || {}).reduce((s, qtd) => s + (parseInt(qtd, 10) || 0), 0);
 }
 
 function currentRetornoPacoteValues() {
