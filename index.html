@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=44">
+  <link rel="stylesheet" href="styles.css?v=45">
 
 </head>
 <body>
@@ -765,10 +765,21 @@
             </div>
           </div>
           <div class="card config-card config-card-wide" data-config-section="metas">
+            <h3>Tipos de Meta</h3>
+            <p class="config-hint">Os tipos cadastrados aqui alimentam o campo “Tipo Meta” abaixo.</p>
+            <div class="config-list-narrow">
+              <ul class="config-list" id="list-meta-tipos"></ul>
+              <div class="config-add">
+                <input type="text" placeholder="Ex.: Meta Extensor" id="input-meta-tipo">
+                <button onclick="addItem('list-meta-tipos', 'input-meta-tipo')">Adicionar</button>
+              </div>
+            </div>
+          </div>
+          <div class="card config-card config-card-wide" data-config-section="metas">
             <h3>Metas de Produção</h3>
             <div class="config-form-grid">
               <div class="field"><label for="mt-tipo">Tipo Meta</label>
-                <input type="text" id="mt-tipo" list="datalist-meta-tipos" autocomplete="off" placeholder="Ex.: Meta Geral, Meta Linha 1, Meta Turno A">
+                <select id="mt-tipo"></select>
               </div>
               <div class="field"><label for="mt-referencia">Referência (opcional)</label>
                 <input type="text" id="mt-referencia" list="datalist-meta-refs" autocomplete="off" placeholder="Ex.: nome do operador, linha, turno…">
@@ -842,14 +853,6 @@
     </main>
   </div>
   <div class="toast" id="toast">Registro salvo com sucesso!</div>
-  <datalist id="datalist-meta-tipos">
-    <option value="Meta Geral"></option>
-    <option value="Meta Operador"></option>
-    <option value="Meta Linha"></option>
-    <option value="Meta Turno"></option>
-    <option value="Meta Gancho"></option>
-    <option value="Meta Diária"></option>
-  </datalist>
   <datalist id="datalist-meta-refs"></datalist>
   <datalist id="datalist-funcoes">
     <option value="Apenado"></option>
@@ -866,7 +869,7 @@
     <option value="Outro"></option>
   </datalist>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=44"></script>
-  <script src="app.js?v=44" defer></script>
+  <script src="supabase-config.js?v=45"></script>
+  <script src="app.js?v=45" defer></script>
 </body>
 </html>

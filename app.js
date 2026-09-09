@@ -24,6 +24,7 @@ const TIPO_FROM_KEY = {
   tamanhos: 'tamanho',
   ganchos: 'gancho',
   pacotes: 'pacote',
+  metaTipos: 'meta_tipo',
 };
 
 const TABLE_FOR = {
@@ -234,6 +235,7 @@ async function dbLoadConfig() {
     tamanhos:  byTipo('tamanho').map(i => i.id),
     ganchos:   byTipo('gancho').map(i => i.id),
     pacotes:   byTipo('pacote').map(i => i.id),
+    metaTipos: byTipo('meta_tipo').map(i => i.id),
   };
 
   return {
@@ -243,6 +245,7 @@ async function dbLoadConfig() {
     tamanhos:  byTipo('tamanho').map(i => i.valor),
     ganchos:   byTipo('gancho').map(i => i.valor),
     pacotes:   byTipo('pacote').map(i => i.valor),
+    metaTipos: byTipo('meta_tipo').map(i => i.valor),
     linhas:    linhasList,
     turnos:    turnosList,
     operadores: operadoresList,
@@ -331,8 +334,8 @@ function emptyEditing() {
 }
 
 const state = {
-  config: { cores: [], diametros: [], caixas: [], tamanhos: [], ganchos: [], pacotes: [], linhas: [], turnos: [], operadores: [], metas: [] },
-  configIds: { diametros: [], caixas: [], tamanhos: [], ganchos: [], pacotes: [] },
+  config: { cores: [], diametros: [], caixas: [], tamanhos: [], ganchos: [], pacotes: [], metaTipos: [], linhas: [], turnos: [], operadores: [], metas: [] },
+  configIds: { diametros: [], caixas: [], tamanhos: [], ganchos: [], pacotes: [], metaTipos: [] },
   email: null,
   profile: null,
   recovering: false,
@@ -1025,6 +1028,7 @@ function renderDropdowns() {
   renderFilterSelects();
   populateOpTurnoSelect();
   populateMetaRefsDatalist();
+  fillSelect('mt-tipo', cfg.metaTipos || []);
 }
 
 // ============================================================
@@ -1114,6 +1118,7 @@ const CONFIG_LISTS = [
   { listId: 'list-tamanhos',   key: 'tamanhos',   isCor: false, inputId: 'input-tamanho' },
   { listId: 'list-ganchos',    key: 'ganchos',    isCor: false, inputId: 'input-gancho' },
   { listId: 'list-pacotes',    key: 'pacotes',    isCor: false, inputId: 'input-pacote' },
+  { listId: 'list-meta-tipos', key: 'metaTipos',  isCor: false, inputId: 'input-meta-tipo' },
 ];
 const metaForListId = (id) => CONFIG_LISTS.find(m => m.listId === id);
 
@@ -1975,7 +1980,7 @@ function startMetaEdit(id) {
   if (!tr) return;
 
   tr.innerHTML = `
-    <td><input type="text" class="mt-edit-tipo" list="datalist-meta-tipos" autocomplete="off" value="${escapeHtml(m.tipo || '')}"></td>
+    <td><select class="mt-edit-tipo"></select></td>
     <td><input type="text" class="mt-edit-ref" list="datalist-meta-refs" autocomplete="off" value="${escapeHtml(m.operador || '')}"></td>
     <td><input type="number" step="1" min="0" class="mt-edit-valor" value="${escapeHtml(String(m.valor))}"></td>
     <td class="td-actions">
@@ -1983,6 +1988,11 @@ function startMetaEdit(id) {
       <button class="mt-cancel" type="button">Cancelar</button>
     </td>
   `;
+
+  // Mantem o tipo atual selecionavel mesmo se ele saiu da lista cadastrada
+  const tipoSel = tr.querySelector('.mt-edit-tipo');
+  fillSelectEl(tipoSel, state.config.metaTipos || [], m.tipo || '');
+  tipoSel.value = m.tipo || '';
 
   tr.querySelector('.mt-save').onclick = () => saveMetaEdit(id);
   tr.querySelector('.mt-cancel').onclick = () => renderMetasTable();
@@ -2033,7 +2043,9 @@ async function addMetaFromForm() {
   const valor = valorRaw ? parseFloat(valorRaw) : NaN;
 
   if (!tipo) {
-    showToast('Informe o tipo da meta.', 'error');
+    showToast((state.config.metaTipos || []).length === 0
+      ? 'Cadastre um tipo em "Tipos de Meta" acima antes de adicionar a meta.'
+      : 'Selecione o tipo da meta.', 'error');
     document.getElementById('mt-tipo').focus();
     return;
   }
@@ -3312,7 +3324,7 @@ function renderDashboard() {
       : `${totalHoje} ${totalHoje === 1 ? 'registro' : 'registros'} hoje em todas as estações.`;
   }
 
-  renderMetas(grQtd + exQtd, gr);
+  renderMetas(grQtd + exQtd, gr, ma, co);
   renderRecentActivity();
 }
 
@@ -3321,7 +3333,7 @@ function setText(id, value) {
   if (el) el.textContent = String(value);
 }
 
-function renderMetas(totalUnidades, grHoje) {
+function renderMetas(totalUnidades, grHoje, maHoje = [], coHoje = []) {
   const container = document.getElementById('metas-list');
   if (!container) return;
   const metas = state.config.metas || [];
@@ -3335,19 +3347,27 @@ function renderMetas(totalUnidades, grHoje) {
   for (const m of metas) {
     const tipoLower = String(m.tipo || '').toLowerCase();
     const isGeral = /\bgeral\b/.test(tipoLower);
-    const isOperador = /\boperador\b/.test(tipoLower) && m.operador;
+    // "Meta Grampeadeira" (antiga "Meta Operador"): producao do operador na grampeadeira
+    const isGrampeadeira = /\bgrampeadeira\b|\boperador\b/.test(tipoLower) && m.operador;
     const isGancho = /\bgancho\b/.test(tipoLower) && m.operador;
+    // "Meta Corda/Mangueira": producao do apenado somando as duas estacoes
+    const isCordaMangueira = /\bcorda[s]?\b|\bmangueira[s]?\b/.test(tipoLower) && m.operador;
     let realizado = null;
     let label = m.tipo || 'Meta';
     if (m.operador) label += ` — ${m.operador}`;
 
     if (isGeral) {
       realizado = totalUnidades;
-    } else if (isOperador) {
+    } else if (isGrampeadeira) {
       realizado = grHoje
         .filter(r => r.operador && normForCompare(r.operador) === normForCompare(m.operador))
         .reduce((s, r) => s + (parseInt(r.qtd, 10) || 0)
                             + (r.he && r.he_dados ? (parseInt(r.he_dados.qtd, 10) || 0) : 0), 0);
+    } else if (isCordaMangueira) {
+      const ref = normForCompare(m.operador);
+      realizado = [...maHoje, ...coHoje]
+        .filter(r => r.nome && normForCompare(r.nome) === ref)
+        .reduce((s, r) => s + (parseInt(r.qtd, 10) || 0), 0);
     } else if (isGancho) {
       // Soma a producao do gancho: qtd principal (gancho do registro) +
       // qtd da hora extra (gancho da HE), cada um comparado ao gancho da meta.
