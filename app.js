@@ -1041,10 +1041,14 @@ function apenadosNomes() {
   return (state.config.operadores || []).filter(isApenado).map(o => o.nome);
 }
 
-// Resumo legivel do jsonb de pacotes: { "PCT 10": 3 } -> "PCT 10: 3"
+// Rotulo da coluna Pacotes: como cada registro tem um unico tipo, a quantidade
+// ja aparece na coluna Total. Registros antigos com varios tipos no mesmo
+// lancamento seguem mostrando a quebra por tipo, que so existe ali.
 function pacotesSummary(pacotes) {
   const obj = pacotes || {};
-  return Object.keys(obj).map(k => `${k}: ${obj[k]}`).join(' · ');
+  const tipos = Object.keys(obj);
+  if (tipos.length <= 1) return tipos[0] || '';
+  return tipos.map(k => `${k}: ${obj[k]}`).join(' · ');
 }
 
 function currentRetornoPacoteValues() {
