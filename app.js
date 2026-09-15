@@ -1318,10 +1318,11 @@ function timeToMin(s) {
   return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
 }
 
-function populateOpTurnoSelect() {
-  const sel = document.getElementById('op-turno');
+// Preenche um select com os turnos cadastrados. O valor gravado e o NOME do
+// turno (nao o rotulo com horario), pra que editar o horario em Configuracoes
+// nao quebre o vinculo com o operador.
+function fillTurnoSelectEl(sel, current) {
   if (!sel) return;
-  const previous = sel.value;
   sel.innerHTML = '';
   const placeholder = document.createElement('option');
   placeholder.value = '';
@@ -1329,12 +1330,33 @@ function populateOpTurnoSelect() {
   sel.appendChild(placeholder);
   for (const t of (state.config.turnos || [])) {
     const o = document.createElement('option');
-    const label = formatTurnoLabel(t);
-    o.value = label;
-    o.textContent = label;
+    o.value = t.nome;
+    o.textContent = formatTurnoLabel(t);
     sel.appendChild(o);
   }
-  if (previous && [...sel.options].some(o => o.value === previous)) sel.value = previous;
+  // Mantem visivel um turno que saiu da config
+  if (current && ![...sel.options].some(o => o.value === current)) {
+    const o = document.createElement('option');
+    o.value = current;
+    o.textContent = current + ' (removido)';
+    sel.appendChild(o);
+  }
+  sel.value = current || '';
+}
+
+function populateOpTurnoSelect() {
+  const sel = document.getElementById('op-turno');
+  if (!sel) return;
+  fillTurnoSelectEl(sel, sel.value);
+}
+
+// Turno do operador. Aceita o nome (formato atual) ou o rotulo completo,
+// caso algum cadastro antigo tenha sido salvo com o horario junto.
+function findTurnoDoOperador(op) {
+  if (!op || !op.turno) return null;
+  const ref = normForCompare(op.turno);
+  return (state.config.turnos || []).find(t =>
+    normForCompare(t.nome) === ref || normForCompare(formatTurnoLabel(t)) === ref) || null;
 }
 
 const OP_PAGE_SIZE = 25;
@@ -1376,7 +1398,7 @@ function renderOperadoresTable() {
   const ops = all.filter(op => {
     if (f.funcao && normForCompare(op.funcao) !== normForCompare(f.funcao)) return false;
     if (busca) {
-      const alvo = normForCompare(`${op.nome} ${op.matricula || ''} ${op.funcao || ''}`);
+      const alvo = normForCompare(`${op.nome} ${op.matricula || ''} ${op.funcao || ''} ${op.turno || ''}`);
       if (!alvo.includes(busca)) return false;
     }
     return true;
@@ -1384,8 +1406,8 @@ function renderOperadoresTable() {
 
   if (ops.length === 0) {
     tbody.innerHTML = all.length === 0
-      ? '<tr><td colspan="4" class="empty-state">Nenhum operador cadastrado.</td></tr>'
-      : '<tr><td colspan="4" class="empty-state">Nenhum operador corresponde ao filtro.</td></tr>';
+      ? '<tr><td colspan="5" class="empty-state">Nenhum operador cadastrado.</td></tr>'
+      : '<tr><td colspan="5" class="empty-state">Nenhum operador corresponde ao filtro.</td></tr>';
     renderPaginationBar('tbody-operadores', { page: 1, totalPages: 0, totalItems: 0, start: 0, shown: 0, onGo: () => {} });
     return;
   }
@@ -1406,6 +1428,7 @@ function renderOperadoresTable() {
       `<td>${escapeHtml(op.nome)}</td>` +
       `<td>${escapeHtml(op.matricula || '—')}</td>` +
       `<td>${escapeHtml(op.funcao || '—')}</td>` +
+      `<td>${escapeHtml(formatTurnoLabel(findTurnoDoOperador(op)) || op.turno || '—')}</td>` +
       `<td class="td-actions">` +
         `<button class="op-edit" type="button">Editar</button> ` +
         `<button class="op-remove" type="button">Remover</button>` +
@@ -1457,11 +1480,13 @@ function startOperadorEdit(id) {
     <td><input type="text" class="op-edit-nome" value="${escapeHtml(op.nome)}"></td>
     <td><input type="text" class="op-edit-matricula" inputmode="numeric" value="${escapeHtml(op.matricula || '')}"></td>
     <td><input type="text" class="op-edit-funcao" list="datalist-funcoes" autocomplete="off" value="${escapeHtml(op.funcao || '')}"></td>
+    <td><select class="op-edit-turno"></select></td>
     <td class="td-actions">
       <button class="op-save" type="button">Salvar</button>
       <button class="op-cancel" type="button">Cancelar</button>
     </td>
   `;
+  fillTurnoSelectEl(tr.querySelector('.op-edit-turno'), op.turno || '');
   const matInput = tr.querySelector('.op-edit-matricula');
   matInput.addEventListener('input', () => {
     const d = matInput.value.replace(/\D+/g, '');
@@ -1479,6 +1504,7 @@ async function saveOperadorEdit(id) {
   const nome = tr.querySelector('.op-edit-nome').value.trim();
   const matricula = tr.querySelector('.op-edit-matricula').value.replace(/\D+/g, '').trim() || null;
   const funcao = tr.querySelector('.op-edit-funcao').value.trim() || null;
+  const turno = tr.querySelector('.op-edit-turno').value || null;
   if (!nome) { showToast('Informe o nome do operador.', 'error'); return; }
 
   const nomeNorm = normForCompare(nome);
@@ -1497,7 +1523,7 @@ async function saveOperadorEdit(id) {
   }
 
   const { data, error } = await sb.from('operadores')
-    .update({ nome, matricula, funcao })
+    .update({ nome, matricula, funcao, turno })
     .eq('id', id)
     .select().single();
   if (error) { showToast('Erro ao atualizar operador: ' + error.message, 'error'); return; }
@@ -1528,7 +1554,7 @@ async function addOperadorFromForm() {
   }
   const matricula = document.getElementById('op-matricula').value.trim() || null;
   const funcao = document.getElementById('op-funcao').value.trim() || null;
-  const turno = null;
+  const turno = document.getElementById('op-turno').value || null;
   const capacidade = null;
 
   const nomeNorm = normForCompare(nome);
@@ -1564,6 +1590,7 @@ async function addOperadorFromForm() {
   document.getElementById('op-nome').value = '';
   document.getElementById('op-matricula').value = '';
   document.getElementById('op-funcao').value = '';
+  document.getElementById('op-turno').value = '';
   renderOperadoresTable();
   renderDropdowns();
   renderDashboard();
@@ -2707,9 +2734,7 @@ async function submitRegistro(kind, form) {
   if (kind === 'grampeadeira' && !heFlag.checked) {
     const opNome = document.getElementById('g-operador').value;
     const op = (state.config.operadores || []).find(o => o.nome === opNome);
-    const turno = op && op.turno
-      ? (state.config.turnos || []).find(t => formatTurnoLabel(t) === op.turno)
-      : null;
+    const turno = findTurnoDoOperador(op);
     if (turno && turno.hi && turno.hf) {
       const hi = timeToMin(document.getElementById('g-hi').value);
       const hf = timeToMin(document.getElementById('g-hf').value);
@@ -2804,9 +2829,7 @@ async function submitRegistro(kind, form) {
       if (stickyAlmoco) document.getElementById('g-almoco').value = stickyAlmoco;
       if (stickyHf) {
         const op = (state.config.operadores || []).find(o => o.nome === stickyOperador);
-        const turno = op && op.turno
-          ? (state.config.turnos || []).find(t => formatTurnoLabel(t) === op.turno)
-          : null;
+        const turno = findTurnoDoOperador(op);
         let canChain = true;
         if (turno && turno.hi && turno.hf) {
           const newHi = timeToMin(stickyHf);
@@ -2893,9 +2916,7 @@ function autoFillAlmocoFromOperador() {
   const opAlmoco = document.getElementById('g-almoco');
   if (!opAlmoco) return;
   const op = (state.config.operadores || []).find(o => o.nome === opNome);
-  const turno = op && op.turno
-    ? (state.config.turnos || []).find(t => formatTurnoLabel(t) === op.turno)
-    : null;
+  const turno = findTurnoDoOperador(op);
   if (turno && turno.almoco_hi && turno.almoco_hf) {
     const mins = minutesBetween(turno.almoco_hi, turno.almoco_hf);
     if (mins != null) opAlmoco.value = minsToHHMM(mins);

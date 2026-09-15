@@ -20,7 +20,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <link rel="stylesheet" href="styles.css?v=47">
+  <link rel="stylesheet" href="styles.css?v=48">
 
 </head>
 <body>
@@ -740,12 +740,13 @@
               <div class="field"><label for="op-nome">Nome</label><input type="text" id="op-nome" placeholder="Ex.: João Silva"></div>
               <div class="field"><label for="op-matricula">Nº Matrícula</label><input type="text" id="op-matricula" inputmode="numeric" pattern="\d*" placeholder="Ex.: 12345"></div>
               <div class="field"><label for="op-funcao">Função</label><input type="text" id="op-funcao" list="datalist-funcoes" autocomplete="off" placeholder="Ex.: Operador grampeadeira, Apenado"></div>
+              <div class="field"><label for="op-turno">Turno</label><select id="op-turno"></select></div>
               <div class="field op-btn-field"><button type="button" id="btn-add-operador" class="btn btn-primary">Adicionar operador</button></div>
             </div>
             <div class="table-toolbar">
               <div class="filters">
                 <label class="filter-field">Buscar
-                  <input type="search" id="op-filtro-busca" placeholder="Nome, matrícula ou função">
+                  <input type="search" id="op-filtro-busca" placeholder="Nome, matrícula, função ou turno">
                 </label>
                 <label class="filter-field">Função
                   <select id="op-filtro-funcao"><option value="">Todas</option></select>
@@ -756,10 +757,10 @@
             <div class="table-wrapper">
               <table>
                 <thead>
-                  <tr><th>Nome</th><th>Matrícula</th><th>Função</th><th class="th-actions">Ações</th></tr>
+                  <tr><th>Nome</th><th>Matrícula</th><th>Função</th><th>Turno</th><th class="th-actions">Ações</th></tr>
                 </thead>
                 <tbody id="tbody-operadores">
-                  <tr><td colspan="4" class="empty-state">Nenhum operador cadastrado.</td></tr>
+                  <tr><td colspan="5" class="empty-state">Nenhum operador cadastrado.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -869,7 +870,7 @@
     <option value="Outro"></option>
   </datalist>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=47"></script>
-  <script src="app.js?v=47" defer></script>
+  <script src="supabase-config.js?v=48"></script>
+  <script src="app.js?v=48" defer></script>
 </body>
 </html>
