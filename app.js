@@ -1047,12 +1047,6 @@ function pacotesSummary(pacotes) {
   return Object.keys(obj).map(k => `${k}: ${obj[k]}`).join(' · ');
 }
 
-// Total do retorno: soma direta dos valores informados — os campos de cada
-// pacote ja recebem unidades totais, nao quantidade de pacotes.
-function retornoTotal(pacotes) {
-  return Object.values(pacotes || {}).reduce((s, qtd) => s + (parseInt(qtd, 10) || 0), 0);
-}
-
 function currentRetornoPacoteValues() {
   const out = {};
   document.querySelectorAll('#r-pacotes .r-pacote-qtd').forEach(inp => {
@@ -2576,13 +2570,16 @@ function buildRegistroFromForm(kind) {
     };
   }
   if (kind === 'retorno') {
-    const pacotes = collectRetornoPacotes();
-    return {
+    // Um registro por tipo de pacote, mesmo que varios sejam lancados juntos.
+    const base = {
       data: document.getElementById('r-data').value,
       tamanho: document.getElementById('r-tamanho').value,
-      pacotes,
-      total: retornoTotal(pacotes),
     };
+    return Object.entries(collectRetornoPacotes()).map(([label, qtd]) => ({
+      ...base,
+      pacotes: { [label]: qtd },
+      total: qtd,
+    }));
   }
   return {};
 }
@@ -2646,8 +2643,14 @@ async function submitRegistro(kind, form) {
       showToast('Cadastre os tipos de pacote em Configurações → Listas de referência → Pacotes.', 'error');
       return;
     }
-    if (Object.keys(collectRetornoPacotes()).length === 0) {
+    const pacotesPreenchidos = Object.keys(collectRetornoPacotes());
+    if (pacotesPreenchidos.length === 0) {
       showToast('Informe a quantidade de ao menos um pacote.', 'error');
+      return;
+    }
+    // Cada registro guarda um unico tipo de pacote: ao editar, so um pode ficar preenchido.
+    if (state.editing.retorno && pacotesPreenchidos.length > 1) {
+      showToast('Cada registro tem um único tipo de pacote. Deixe apenas um preenchido para atualizar.', 'error');
       return;
     }
   }
@@ -2730,8 +2733,8 @@ async function submitRegistro(kind, form) {
   const editingId = state.editing[kind];
   const userId = await getCurrentUserId();
 
-  // Grampeadeira/Trancadeira nao-editando: data eh array (varios itens). Senao, e objeto unico.
-  const isBatch = (kind === 'grampeadeira' || kind === 'trancadeira') && Array.isArray(data);
+  // Grampeadeira/Trancadeira/Retorno nao-editando: data eh array (varios itens). Senao, e objeto unico.
+  const isBatch = (kind === 'grampeadeira' || kind === 'trancadeira' || kind === 'retorno') && Array.isArray(data);
   const singleData = isBatch ? data[0] : data;
 
   if (editingId) {
@@ -2832,6 +2835,15 @@ async function submitRegistro(kind, form) {
       if (stickyTipoCaixa) document.getElementById('t-tipo-caixa').value = stickyTipoCaixa;
       if (stickyCor) document.getElementById('t-cor').value = stickyCor;
       if (stickyDiametro) document.getElementById('t-diametro').value = stickyDiametro;
+    } else if (kind === 'retorno') {
+      const stickyRetData = document.getElementById('r-data').value;
+      const stickyTamanho = document.getElementById('r-tamanho').value;
+      form.reset();
+      const dateInput = form.querySelector('input[type="date"]');
+      if (dateInput) dateInput.value = todayISO();
+      renderRetornoPacoteFields({});
+      if (stickyRetData) document.getElementById('r-data').value = stickyRetData;
+      if (stickyTamanho) document.getElementById('r-tamanho').value = stickyTamanho;
     }
     renderTable(kind);
     renderDashboard();
