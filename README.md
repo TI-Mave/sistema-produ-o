@@ -74,7 +74,8 @@ sistema-produ-o/
     ├── metas-tipo-livre.sql   # metas.tipo passa a aceitar texto livre
     ├── mangueiras-cordas-retorno.sql  # Tabelas mangueira/corda/retorno + tipo 'pacote'
     ├── tipos-meta.sql         # Tipos de meta cadastraveis + renomeia metas antigas
-    └── retorno-um-pacote-por-registro.sql  # Divide retornos com varios pacotes
+    ├── retorno-um-pacote-por-registro.sql  # Divide retornos com varios pacotes
+    └── grampeadeira-desconto-colunas.sql   # desconto_motivo/desconto_duracao (+ backfill do jsonb)
 ```
 
 ### Como o front está organizado (`app.js`)
@@ -112,11 +113,12 @@ Todas as tabelas ficam no schema `public`. IDs são `uuid`. Datas de criação e
 | Tabela | Campos principais |
 |---|---|
 | `registros_trancadeira` | `data`, `tipo_caixa`, `linha`, `cor`, `diametro`, `peso`, `hora` |
-| `registros_grampeadeira` | `data`, `op`, `hi`, `hf`, `operador`, `qtd`, `tam`, `gancho`, `he` + `he_dados` (jsonb), `desconto` + `desconto_dados` (jsonb), `almoco`, `hora` |
+| `registros_grampeadeira` | `data`, `op`, `hi`, `hf`, `operador`, `qtd`, `tam`, `gancho`, `he` + `he_dados` (jsonb), `desconto` + `desconto_motivo` + `desconto_duracao`, `almoco`, `hora` |
 | `registros_extensor` | `data`, `cor`, `diametro`, `qtd`, `hora` |
 
 Todos os registros têm `user_id` (quem lançou) e `hora` (hora do apontamento, texto `HH:MM`).
-`he_dados` guarda `{ hi, hf, tam, qtd, gancho }` da hora extra; `desconto_dados` guarda `{ motivo, duracao }`.
+`he_dados` guarda `{ hi, hf, tam, qtd, gancho }` da hora extra. O desconto de horas fica em colunas próprias
+(`desconto_motivo`, `desconto_duracao`); o antigo jsonb `desconto_dados` é só histórico.
 
 ### Usuários e permissões
 
@@ -192,7 +194,7 @@ No **SQL Editor** do Supabase, rode os scripts da pasta `supabase/` **nesta orde
 4. As migrações incrementais: `turnos-almoco.sql`, `grampeadeira-almoco.sql`, `desconto-hora.sql`,
    `extensor-sem-tipocaixa.sql`, `tam-texto.sql`, `tamanho-gancho.sql`, `metas-tipo-livre.sql`,
    `mangueiras-cordas-retorno.sql`, `tipos-meta.sql`,
-   `retorno-um-pacote-por-registro.sql`
+   `retorno-um-pacote-por-registro.sql`, `grampeadeira-desconto-colunas.sql`
 5. `restrict-email-domain.sql` e `delete-user.sql`
 
 > Os scripts são **idempotentes** (usam `if not exists` / `if exists`) — dá pra rodar de novo sem quebrar.

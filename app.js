@@ -91,7 +91,9 @@ const FROM_DB = {
     he: !!row.he,
     he_dados: row.he_dados || null,
     desconto: !!row.desconto,
-    desconto_dados: row.desconto_dados || null,
+    // Colunas proprias (como almoco). Cai no jsonb antigo se a linha ainda nao foi migrada.
+    desconto_motivo: row.desconto_motivo || (row.desconto_dados && row.desconto_dados.motivo) || '',
+    desconto_duracao: row.desconto_duracao || (row.desconto_dados && row.desconto_dados.duracao) || '',
     almoco: row.almoco || '',
   }),
   extensor: (row) => ({
@@ -149,7 +151,8 @@ const TO_DB = {
     he: !!r.he,
     he_dados: r.he ? r.he_dados : null,
     desconto: !!r.desconto,
-    desconto_dados: r.desconto ? r.desconto_dados : null,
+    desconto_motivo: r.desconto ? (r.desconto_motivo || null) : null,
+    desconto_duracao: r.desconto ? (r.desconto_duracao || null) : null,
     almoco: r.almoco || null,
   }),
   extensor: (r, userId) => ({
@@ -812,7 +815,8 @@ function fmtBool(v) { return v ? 'Sim' : 'Não'; }
 const CSV_HEADERS = {
   trancadeira: ['Hora', 'Data', 'Tipo Caixa', 'Linha', 'Cor', 'Diâmetro (mm)', 'Peso (kg)'],
   grampeadeira: ['Hora reg.', 'Nº O.P.', 'Data', 'Início', 'Fim', 'Operador', 'Qtd', 'Tamanho', 'Gancho',
-                 'HE', 'HE Início', 'HE Fim', 'HE Tamanho', 'HE Qtd', 'HE Gancho'],
+                 'HE', 'HE Início', 'HE Fim', 'HE Tamanho', 'HE Qtd', 'HE Gancho',
+                 'Desconto', 'Motivo desconto', 'Duração desconto'],
   extensor: ['Hora reg.', 'Data', 'Cor', 'Diâmetro (mm)', 'Quantidade'],
   mangueira: ['Hora reg.', 'Data', 'Nome', 'Quantidade'],
   corda: ['Hora reg.', 'Data', 'Nome', 'Quantidade'],
@@ -829,6 +833,7 @@ function csvRow(kind, r) {
       r.hora, r.op, r.data, r.hi, r.hf, r.operador, r.qtd, r.tam, r.gancho,
       fmtBool(r.he),
       r.he ? he.hi : '', r.he ? he.hf : '', r.he ? he.tam : '', r.he ? he.qtd : '', r.he ? he.gancho : '',
+      fmtBool(r.desconto), r.desconto ? r.desconto_motivo : '', r.desconto ? r.desconto_duracao : '',
     ];
   }
   if (kind === 'extensor') {
@@ -2157,7 +2162,7 @@ const TABLE_META = {
     countId: 'count-grampeadeira',
     formId: 'form-grampeadeira',
     tabName: 'grampeadeiras',
-    colspan: 11,
+    colspan: 13,
     rowCells: (r) => `
       <td>${escapeHtml(r.hora)}</td>
       <td>${escapeHtml(r.op || '—')}</td>
@@ -2168,7 +2173,9 @@ const TABLE_META = {
       <td>${escapeHtml(r.qtd)}</td>
       <td>${escapeHtml(r.tam)}</td>
       <td>${escapeHtml(r.gancho)}</td>
-      <td>${r.he ? 'Sim' : 'Não'}</td>`,
+      <td>${r.he ? 'Sim' : 'Não'}</td>
+      <td>${escapeHtml(r.desconto ? (r.desconto_motivo || '—') : '—')}</td>
+      <td>${escapeHtml(r.desconto ? (r.desconto_duracao || '—') : '—')}</td>`,
   },
   extensor: {
     tbodyId: 'tbody-extensor',
@@ -2485,9 +2492,9 @@ function fillFormFromRegistro(kind, r) {
     if (descFlag && descBlock) {
       descFlag.checked = !!r.desconto;
       descBlock.classList.toggle('show', !!r.desconto);
-      if (r.desconto && r.desconto_dados) {
-        document.getElementById('g-desc-motivo').value = r.desconto_dados.motivo || '';
-        document.getElementById('g-desc-duracao').value = r.desconto_dados.duracao || '';
+      if (r.desconto) {
+        document.getElementById('g-desc-motivo').value = r.desconto_motivo || '';
+        document.getElementById('g-desc-duracao').value = r.desconto_duracao || '';
       } else {
         document.getElementById('g-desc-motivo').value = '';
         document.getElementById('g-desc-duracao').value = '';
@@ -2568,10 +2575,8 @@ function buildRegistroFromForm(kind) {
       gancho: document.getElementById('g-he-gancho').value,
     } : null;
     const desconto = !!(descFlag && descFlag.checked);
-    const desconto_dados = desconto ? {
-      motivo: document.getElementById('g-desc-motivo').value.trim(),
-      duracao: document.getElementById('g-desc-duracao').value,
-    } : null;
+    const desconto_motivo = desconto ? document.getElementById('g-desc-motivo').value.trim() : '';
+    const desconto_duracao = desconto ? document.getElementById('g-desc-duracao').value : '';
     const items = collectItemRows();
     // HE/Desconto so vao no PRIMEIRO registro do lote (evitam duplicacao no dashboard)
     return items.map((it, idx) => ({
@@ -2581,7 +2586,8 @@ function buildRegistroFromForm(kind) {
       he: idx === 0 ? he : false,
       he_dados: idx === 0 ? he_dados : null,
       desconto: idx === 0 ? desconto : false,
-      desconto_dados: idx === 0 ? desconto_dados : null,
+      desconto_motivo: idx === 0 ? desconto_motivo : '',
+      desconto_duracao: idx === 0 ? desconto_duracao : '',
     }));
   }
   if (kind === 'extensor') {
